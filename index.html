@@ -64,7 +64,7 @@
     <!-- En-tête compact et figé -->
     <header class="bg-slate-900/90 border border-slate-800 rounded-2xl px-3 py-2 flex items-center justify-between gap-2 shadow-lg shrink-0">
       <div class="flex items-center gap-2.5 min-w-0 flex-1">
-        <button id="logo-m-btn" onclick="togglePauseMenuBtn()" title="Options de partie" class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shrink-0 active:scale-95 transition">
+        <button id="logo-m-btn" onclick="pauseGame()" title="Mettre en pause" class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shrink-0 active:scale-95 transition">
           M
         </button>
         <div class="min-w-0 flex-1">
@@ -191,12 +191,9 @@
       </div>
     </section>
 
-    <!-- Pied de page barème + petit bouton discret de pause (affiché via clic sur M) -->
-    <footer id="footer-bar" class="flex items-center justify-center gap-2 text-center text-[11px] text-slate-500 shrink-0 min-h-[22px]">
-      <span>Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire</span>
-      <button id="pause-trigger-btn" onclick="pauseGame()" class="hidden px-2 py-0.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-amber-400 text-[10px] font-bold tracking-wide shrink-0 active:scale-95 transition">
-        ⏸ Pause
-      </button>
+    <!-- Pied de page barème -->
+    <footer id="footer-bar" class="text-center text-[11px] text-slate-500 shrink-0">
+      Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire
     </footer>
 
   </div>
@@ -255,13 +252,13 @@
 
   <script>
     // =========================================================================
-    // 0. SYNTHÈSE AUDIO SANS DROIT D'AUTEUR (MUSIQUE DOUCE + RÉVEIL FIN DE PARTIE)
+    // 0. SYNTHÈSE AUDIO SANS DROIT D'AUTEUR (MUSIQUE + RÉVEIL FIN DE PARTIE)
     // =========================================================================
     let audioCtx = null;
     let musicInterval = null;
     let musicStep = 0;
 
-    function ensureAudioContext() {
+    function unlockAudio() {
       if (!audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (AudioContextClass) {
@@ -271,32 +268,45 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume().catch(() => {});
       }
+      // Joue un micro-tampon silencieux pour débloquer l'audio mobile (Android/iOS)
+      if (audioCtx) {
+        try {
+          const buffer = audioCtx.createBuffer(1, 1, 22050);
+          const src = audioCtx.createBufferSource();
+          src.buffer = buffer;
+          src.connect(audioCtx.destination);
+          src.start(0);
+        } catch (_) {}
+      }
       return audioCtx;
     }
 
-    // Petite mélodie douce pentatonique générée par Web Audio API (libre de droits)
+    // Débloquer l'audio dès la première interaction tactile/clic sur la page
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+
+    // Mélodie douce pentatonique générée par Web Audio API (libre de droits)
     const MELODY_NOTES = [
-      261.63, 329.63, 392.00, 523.25,
-      392.00, 329.63, 293.66, 392.00,
-      261.63, 329.63, 440.00, 392.00,
-      329.63, 293.66, 261.63, 0
+      392.00, 440.00, 523.25, 659.25,
+      523.25, 440.00, 392.00, 523.25,
+      329.63, 392.00, 440.00, 523.25,
+      440.00, 392.00, 329.63, 293.66
     ];
 
     function playMelodyNote(freq) {
       if (!freq) return;
-      const ctx = ensureAudioContext();
+      const ctx = unlockAudio();
       if (!ctx) return;
 
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'sine';
+      osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, now);
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.025, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -307,15 +317,25 @@
 
     function startBackgroundMusic() {
       stopBackgroundMusic();
-      ensureAudioContext();
+      const ctx = unlockAudio();
       musicStep = 0;
-      playMelodyNote(MELODY_NOTES[0]);
-      musicStep = 1;
-      musicInterval = setInterval(() => {
+
+      const scheduleFirst = () => {
         if (!isPlaying || isPaused) return;
-        playMelodyNote(MELODY_NOTES[musicStep % MELODY_NOTES.length]);
-        musicStep++;
-      }, 480);
+        playMelodyNote(MELODY_NOTES[0]);
+        musicStep = 1;
+        musicInterval = setInterval(() => {
+          if (!isPlaying || isPaused) return;
+          playMelodyNote(MELODY_NOTES[musicStep % MELODY_NOTES.length]);
+          musicStep++;
+        }, 480);
+      };
+
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().then(scheduleFirst).catch(scheduleFirst);
+      } else {
+        scheduleFirst();
+      }
     }
 
     function stopBackgroundMusic() {
@@ -327,11 +347,10 @@
 
     // Sonnerie de réveil (~2 secondes) à la fin des 2 minutes
     function playAlarmSound() {
-      const ctx = ensureAudioContext();
+      const ctx = unlockAudio();
       if (!ctx) return;
 
       const now = ctx.currentTime;
-      // 4 salves de double bip sur 2.0 secondes
       for (let burst = 0; burst < 4; burst++) {
         const burstStart = now + burst * 0.5;
         for (let beep = 0; beep < 2; beep++) {
@@ -343,9 +362,9 @@
           osc.frequency.setValueAtTime(880, t0);
           osc.frequency.setValueAtTime(1174.66, t0 + 0.05);
 
-          gain.gain.setValueAtTime(0.0001, t0);
-          gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.015);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+          gain.gain.setValueAtTime(0.001, t0);
+          gain.gain.linearRampToValueAtTime(0.22, t0 + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.11);
 
           osc.connect(gain);
           gain.connect(ctx.destination);
@@ -726,13 +745,7 @@
     const timerBox = document.getElementById('timer-box');
     const mainStageEl = document.getElementById('main-stage');
     const footerBarEl = document.getElementById('footer-bar');
-    const pauseTriggerBtn = document.getElementById('pause-trigger-btn');
     const overlayPauseEl = document.getElementById('overlay-pause');
-
-    function togglePauseMenuBtn() {
-      if (!isPlaying) return;
-      pauseTriggerBtn.classList.toggle('hidden');
-    }
 
     function pauseGame() {
       if (!isPlaying || isPaused) return;
@@ -748,7 +761,6 @@
       if (!isPlaying || !isPaused) return;
       isPaused = false;
       overlayPauseEl.classList.add('hidden');
-      pauseTriggerBtn.classList.add('hidden');
       startBackgroundMusic();
     }
 
@@ -942,7 +954,6 @@
       document.getElementById('overlay-end').classList.add('hidden');
       document.getElementById('post-game-bar').classList.add('hidden');
       overlayPauseEl.classList.add('hidden');
-      pauseTriggerBtn.classList.add('hidden');
 
       timerDisplay.textContent = formatTime(timeLeft);
       timerBox.className = 'w-[84px] justify-center bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-amber-400 shrink-0';
@@ -975,7 +986,6 @@
       isDragging = false;
       selectedIndices = [];
       overlayPauseEl.classList.add('hidden');
-      pauseTriggerBtn.classList.add('hidden');
       updateSelectionVisuals();
 
       // Calcul de tous les mots possibles sur la grille 4x4
