@@ -123,36 +123,44 @@
           <button id="start-btn" onclick="startGame()" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-base tracking-wide shadow-lg shadow-orange-500/25 active:scale-95 transition">
             LANCER LA PARTIE
           </button>
-          <button id="open-mp-btn" onclick="openMultiplayerLobby()" class="w-full py-2.5 px-4 rounded-2xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs tracking-wide active:scale-95 transition">
+          <button id="open-mp-btn" type="button" onclick="openMultiplayerLobby()" class="w-full py-2.5 px-4 rounded-2xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-xs tracking-wide active:scale-95 transition">
             👥 Mode Multijoueur (Salon à 4 chiffres)
           </button>
         </div>
       </div>
 
       <!-- Écran Multijoueur (Salon d'attente parallèle) -->
-      <div id="overlay-multiplayer" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col justify-between p-4 text-center z-25 animate-pop">
+      <div id="overlay-multiplayer" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col justify-between p-4 text-center z-30 animate-pop">
         <div class="flex items-center justify-between shrink-0">
-          <span class="text-xs font-extrabold uppercase tracking-wider text-amber-400">👥 Salon Multijoueur</span>
-          <button onclick="closeMultiplayerLobby()" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-bold active:scale-95 transition">
-            ← Solo
+          <span class="text-xs font-extrabold uppercase tracking-wider text-amber-400">👥 Mode Multijoueur</span>
+          <button type="button" onclick="closeMultiplayerLobby()" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-bold active:scale-95 transition">
+            ← Accueil
           </button>
         </div>
 
-        <!-- Vue 1 : Créer ou Rejoindre un salon à 4 chiffres -->
+        <!-- Alerte dictionnaire si vide en multijoueur -->
+        <div id="mp-no-dict-alert" class="hidden my-1 p-2 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-between gap-2 text-left shrink-0">
+          <span class="text-[11px] text-amber-300 font-semibold leading-tight">Dictionnaire requis pour jouer</span>
+          <button type="button" onclick="openDictModal()" class="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-[11px] shrink-0 active:scale-95 transition">
+            📂 Importer
+          </button>
+        </div>
+
+        <!-- Vue 1 : Lancer un nouveau jeu et inviter OU Rejoindre un jeu existant -->
         <div id="mp-setup-view" class="flex-1 flex flex-col justify-center gap-3 my-auto">
-          <button onclick="createMultiplayerRoom()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg active:scale-95 transition">
-            Créer un salon (Code à 4 chiffres)
+          <button type="button" onclick="createMultiplayerRoom()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg active:scale-95 transition">
+            ➕ Lancer un nouveau jeu et inviter
           </button>
 
           <div class="flex items-center gap-2 text-[11px] text-slate-500">
             <hr class="flex-1 border-slate-800" />
-            <span>OU REJOINDRE</span>
+            <span>OU REJOINDRE UN JEU EXISTANT</span>
             <hr class="flex-1 border-slate-800" />
           </div>
 
           <div class="flex gap-2">
-            <input id="mp-code-input" type="tel" inputmode="numeric" maxlength="4" placeholder="Code 4 chiffres" class="flex-1 bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2.5 text-center font-mono font-black text-lg tracking-[0.3em] text-white outline-none" />
-            <button onclick="joinMultiplayerRoom()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-400 font-black text-sm active:scale-95 transition">
+            <input id="mp-code-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3 py-2.5 text-center font-mono font-black text-lg tracking-[0.3em] text-white outline-none" />
+            <button type="button" onclick="joinMultiplayerRoom()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-400 font-black text-sm shrink-0 active:scale-95 transition">
               Rejoindre
             </button>
           </div>
@@ -161,23 +169,23 @@
 
         <!-- Vue 2 : Salle d'attente connectée -->
         <div id="mp-waiting-view" class="hidden flex-1 flex flex-col justify-center items-center gap-2.5 my-auto">
-          <div class="text-[11px] uppercase tracking-widest text-slate-400 font-bold">Code du salon</div>
-          <div id="mp-room-code-display" class="px-5 py-2 rounded-2xl bg-slate-900 border-2 border-amber-400/60 font-mono font-black text-3xl tracking-[0.35em] text-amber-400">
+          <div class="text-[11px] uppercase tracking-widest text-slate-400 font-bold">Code à partager</div>
+          <div id="mp-room-code-display" class="px-5 py-2 rounded-2xl bg-slate-900 border-2 border-amber-400/60 font-mono font-black text-3xl tracking-[0.35em] text-amber-400 select-all">
             0000
           </div>
 
           <div class="flex items-center gap-2 mt-1 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-800">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="mp-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
             <span id="mp-players-count-text" class="text-xs font-bold text-slate-200">
-              0 autre joueur connecté et en attente
+              En attente d'autres joueurs...
             </span>
           </div>
 
           <p id="mp-waiting-hint" class="text-[11px] text-slate-400 max-w-xs leading-snug">
-            Communiquez ce code à 4 chiffres aux autres joueurs. N'importe qui peut lancer la partie !
+            Les autres joueurs doivent entrer ce code à 4 chiffres dans « Rejoindre un jeu existant ».
           </p>
 
-          <button id="mp-start-match-btn" onclick="triggerMultiplayerStart()" class="w-full max-w-xs mt-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg active:scale-95 transition">
+          <button id="mp-start-match-btn" type="button" onclick="triggerMultiplayerStart()" class="w-full max-w-xs mt-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg active:scale-95 transition">
             DÉMARRER LA PARTIE
           </button>
         </div>
@@ -605,6 +613,7 @@
       const statusEl = document.getElementById('dict-status');
       const dotEl = document.getElementById('dict-dot');
       const noDictBanner = document.getElementById('no-dict-banner');
+      const mpNoDictAlert = document.getElementById('mp-no-dict-alert');
       const modalCount = document.getElementById('modal-word-count');
       const modalFiles = document.getElementById('modal-files-list');
 
@@ -616,6 +625,7 @@
         const kCount = Math.floor(count / 1000);
         statusEl.textContent = `${kCount}k mots`;
         noDictBanner.classList.add('hidden');
+        if (mpNoDictAlert) mpNoDictAlert.classList.add('hidden');
         modalFiles.textContent = importedFileNames.length > 0
           ? 'Fichiers : ' + importedFileNames.join(', ')
           : 'Base enregistrée sur votre appareil.';
@@ -623,6 +633,7 @@
         dotEl.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
         statusEl.textContent = '0k mots';
         noDictBanner.classList.remove('hidden');
+        if (mpNoDictAlert) mpNoDictAlert.classList.remove('hidden');
         modalFiles.textContent = 'Aucun fichier importé pour le moment.';
       }
     }
@@ -858,7 +869,18 @@
     // =========================================================================
     // 3. MODE MULTIJOUEUR PARALLÈLE (WEBRTC PEERJS • CODE À 4 CHIFFRES)
     // =========================================================================
-    const MP_ID_PREFIX = 'motscaches-fr-salon-';
+    const MP_ID_PREFIX = 'mc4x4-fr-room-';
+    const PEER_CONFIG = {
+      debug: 0,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      }
+    };
+
     let isMultiplayer = false;
     let isRoomHost = false;
     let mpRoomCode = '';
@@ -866,7 +888,7 @@
     let mpConnections = new Map(); // peerId -> DataConnection (utilisé par l'hôte)
     let mpHostConn = null;          // DataConnection vers l'hôte (utilisé par les invités)
     let mpOtherPlayersCount = 0;
-    let mpRemoteScores = [];        // [{ id, label, score, wordsCount }]
+    let mpRemoteScores = [];        // [{ playerId, label, score, wordsCount }]
     let myPlayerShortId = Math.random().toString(36).substring(2, 6).toUpperCase();
 
     function cleanupMultiplayerNetwork() {
@@ -886,32 +908,44 @@
       mpRemoteScores = [];
     }
 
-    function updateMpWaitingCounter() {
+    function updateMpWaitingCounter(statusMessage = null) {
       const el = document.getElementById('mp-players-count-text');
+      const dot = document.getElementById('mp-status-dot');
       if (!el) return;
+
+      if (statusMessage) {
+        el.textContent = statusMessage;
+        if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+        return;
+      }
+
+      if (dot) {
+        dot.className = mpOtherPlayersCount > 0
+          ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse'
+          : 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+      }
+
       if (mpOtherPlayersCount === 0) {
-        el.textContent = '0 autre joueur connecté et en attente';
+        el.textContent = '0 autre joueur connecté (en attente)';
       } else if (mpOtherPlayersCount === 1) {
-        el.textContent = '1 autre joueur connecté et en attente';
+        el.textContent = '1 autre joueur connecté et prêt';
       } else {
-        el.textContent = `${mpOtherPlayersCount} autres joueurs connectés et en attente`;
+        el.textContent = `${mpOtherPlayersCount} autres joueurs connectés et prêts`;
       }
     }
 
     function openMultiplayerLobby() {
-      if (dictionarySet.size === 0) {
-        openDictModal();
-        return;
-      }
       cleanupMultiplayerNetwork();
       isMultiplayer = true;
       isRoomHost = false;
       mpRoomCode = '';
 
+      updateHeaderStatus();
       document.getElementById('mp-error-msg').textContent = '';
       document.getElementById('mp-code-input').value = '';
       document.getElementById('mp-setup-view').classList.remove('hidden');
       document.getElementById('mp-waiting-view').classList.add('hidden');
+      document.getElementById('overlay-start').classList.add('hidden');
       document.getElementById('overlay-multiplayer').classList.remove('hidden');
     }
 
@@ -934,7 +968,7 @@
 
     function createMultiplayerRoom(attempt = 0) {
       if (typeof Peer === 'undefined') {
-        document.getElementById('mp-error-msg').textContent = 'Service réseau indisponible. Vérifiez votre connexion.';
+        document.getElementById('mp-error-msg').textContent = 'Service réseau indisponible. Vérifiez votre connexion Internet.';
         return;
       }
       cleanupMultiplayerNetwork();
@@ -943,34 +977,49 @@
       isRoomHost = true;
       isMultiplayer = true;
 
-      document.getElementById('mp-error-msg').textContent = 'Création du salon...';
+      // Afficher immédiatement le code à 4 chiffres et la salle d'attente
+      document.getElementById('mp-error-msg').textContent = '';
+      document.getElementById('mp-room-code-display').textContent = code;
+      mpOtherPlayersCount = 0;
+      updateMpWaitingCounter('Ouverture du salon en ligne...');
+      document.getElementById('mp-setup-view').classList.add('hidden');
+      document.getElementById('mp-waiting-view').classList.remove('hidden');
 
-      const peer = new Peer(MP_ID_PREFIX + code);
+      const peer = new Peer(MP_ID_PREFIX + code, PEER_CONFIG);
       mpPeer = peer;
 
       peer.on('open', () => {
-        document.getElementById('mp-error-msg').textContent = '';
-        document.getElementById('mp-room-code-display').textContent = code;
-        mpOtherPlayersCount = 0;
         updateMpWaitingCounter();
-        document.getElementById('mp-setup-view').classList.add('hidden');
-        document.getElementById('mp-waiting-view').classList.remove('hidden');
       });
 
       peer.on('connection', (conn) => {
-        conn.on('open', () => {
-          mpConnections.set(conn.peer, conn);
-          mpOtherPlayersCount = mpConnections.size;
-          updateMpWaitingCounter();
-          broadcastFromHost({
-            type: 'LOBBY_STATE',
-            totalPlayers: mpConnections.size + 1
-          });
-        });
+        const registerGuest = () => {
+          if (!mpConnections.has(conn.peer)) {
+            mpConnections.set(conn.peer, conn);
+            mpOtherPlayersCount = mpConnections.size;
+            updateMpWaitingCounter();
+            broadcastFromHost({
+              type: 'LOBBY_STATE',
+              totalPlayers: mpConnections.size + 1
+            });
+          }
+        };
+
+        if (conn.open) {
+          registerGuest();
+        } else {
+          conn.on('open', registerGuest);
+        }
 
         conn.on('data', (data) => {
           if (!data || typeof data !== 'object') return;
-          if (data.type === 'REQUEST_START') {
+          if (data.type === 'HELLO') {
+            registerGuest();
+            broadcastFromHost({
+              type: 'LOBBY_STATE',
+              totalPlayers: mpConnections.size + 1
+            });
+          } else if (data.type === 'REQUEST_START') {
             triggerMultiplayerStart();
           } else if (data.type === 'PLAYER_SCORE') {
             recordMultiplayerScore(data.playerId, data.label, data.score, data.wordsCount);
@@ -982,13 +1031,14 @@
         });
 
         const handleDisconnect = () => {
-          mpConnections.delete(conn.peer);
-          mpOtherPlayersCount = mpConnections.size;
-          updateMpWaitingCounter();
-          broadcastFromHost({
-            type: 'LOBBY_STATE',
-            totalPlayers: mpConnections.size + 1
-          });
+          if (mpConnections.delete(conn.peer)) {
+            mpOtherPlayersCount = mpConnections.size;
+            updateMpWaitingCounter();
+            broadcastFromHost({
+              type: 'LOBBY_STATE',
+              totalPlayers: mpConnections.size + 1
+            });
+          }
         };
 
         conn.on('close', handleDisconnect);
@@ -996,17 +1046,19 @@
       });
 
       peer.on('error', (err) => {
-        if (err && err.type === 'unavailable-id' && attempt < 5) {
+        if (err && err.type === 'unavailable-id' && attempt < 8) {
           createMultiplayerRoom(attempt + 1);
         } else {
-          document.getElementById('mp-error-msg').textContent = 'Impossible de créer le salon. Réessayez.';
+          document.getElementById('mp-waiting-view').classList.add('hidden');
+          document.getElementById('mp-setup-view').classList.remove('hidden');
+          document.getElementById('mp-error-msg').textContent = 'Impossible de joindre le serveur multijoueur. Vérifiez votre réseau.';
         }
       });
     }
 
     function joinMultiplayerRoom() {
       if (typeof Peer === 'undefined') {
-        document.getElementById('mp-error-msg').textContent = 'Service réseau indisponible. Vérifiez votre connexion.';
+        document.getElementById('mp-error-msg').textContent = 'Service réseau indisponible. Vérifiez votre connexion Internet.';
         return;
       }
       const rawCode = (document.getElementById('mp-code-input').value || '').trim();
@@ -1019,9 +1071,9 @@
       mpRoomCode = rawCode;
       isRoomHost = false;
       isMultiplayer = true;
-      document.getElementById('mp-error-msg').textContent = 'Connexion au salon...';
+      document.getElementById('mp-error-msg').textContent = 'Connexion au salon ' + rawCode + '...';
 
-      const peer = new Peer();
+      const peer = new Peer(PEER_CONFIG);
       mpPeer = peer;
 
       peer.on('open', () => {
@@ -1030,9 +1082,10 @@
 
         const timeout = setTimeout(() => {
           if (!conn.open) {
-            document.getElementById('mp-error-msg').textContent = 'Salon introuvable avec ce code.';
+            document.getElementById('mp-error-msg').textContent = 'Salon ' + rawCode + ' introuvable ou hors ligne.';
+            cleanupMultiplayerNetwork();
           }
-        }, 6000);
+        }, 8000);
 
         conn.on('open', () => {
           clearTimeout(timeout);
@@ -1042,12 +1095,13 @@
           updateMpWaitingCounter();
           document.getElementById('mp-setup-view').classList.add('hidden');
           document.getElementById('mp-waiting-view').classList.remove('hidden');
+          try { conn.send({ type: 'HELLO', playerId: myPlayerShortId }); } catch (_) {}
         });
 
         conn.on('data', (data) => {
           if (!data || typeof data !== 'object') return;
           if (data.type === 'LOBBY_STATE') {
-            mpOtherPlayersCount = Math.max(0, (data.totalPlayers || 1) - 1);
+            mpOtherPlayersCount = Math.max(1, (data.totalPlayers || 1) - 1);
             updateMpWaitingCounter();
           } else if (data.type === 'START_MATCH' && Array.isArray(data.letters) && data.letters.length === 16) {
             mpRemoteScores = [];
@@ -1072,13 +1126,21 @@
         });
       });
 
-      peer.on('error', () => {
-        document.getElementById('mp-error-msg').textContent = 'Salon introuvable ou réseau indisponible.';
+      peer.on('error', (err) => {
+        if (err && err.type === 'peer-unavailable') {
+          document.getElementById('mp-error-msg').textContent = 'Aucun salon actif avec le code ' + rawCode + '.';
+        } else {
+          document.getElementById('mp-error-msg').textContent = 'Salon introuvable ou réseau indisponible.';
+        }
       });
     }
 
     function triggerMultiplayerStart() {
       if (!isMultiplayer) return;
+      if (dictionarySet.size === 0) {
+        openDictModal();
+        return;
+      }
       if (isRoomHost) {
         const sharedLetters = rollDice();
         mpRemoteScores = [];
