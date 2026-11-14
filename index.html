@@ -130,7 +130,7 @@
       </div>
 
       <!-- Écran Multijoueur (Salon d'attente parallèle) -->
-      <div id="overlay-multiplayer" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col justify-between p-4 text-center z-25 animate-pop">
+      <div id="overlay-multiplayer" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col justify-between p-4 text-center z-30 animate-pop">
         <div class="flex items-center justify-between shrink-0">
           <span class="text-xs font-extrabold uppercase tracking-wider text-amber-400">👥 Salon Multijoueur</span>
           <button onclick="closeMultiplayerLobby()" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-bold active:scale-95 transition">
@@ -860,10 +860,10 @@
     let isRoomHost = false;
     let mpRoomCode = '';
     let mpPeer = null;
-    let mpConnections = new Map(); // peerId -> DataConnection (utilisé par l'hôte)
-    let mpHostConn = null;          // DataConnection vers l'hôte (utilisé par les invités)
+    let mpConnections = new Map();
+    let mpHostConn = null;
     let mpOtherPlayersCount = 0;
-    let mpRemoteScores = [];        // [{ id, label, score, wordsCount }]
+    let mpRemoteScores = [];
     let myPlayerShortId = Math.random().toString(36).substring(2, 6).toUpperCase();
 
     function cleanupMultiplayerNetwork() {
@@ -909,6 +909,7 @@
       document.getElementById('mp-code-input').value = '';
       document.getElementById('mp-setup-view').classList.remove('hidden');
       document.getElementById('mp-waiting-view').classList.add('hidden');
+      document.getElementById('overlay-start').classList.add('hidden');
       document.getElementById('overlay-multiplayer').classList.remove('hidden');
     }
 
@@ -1420,7 +1421,6 @@
       overlayPauseEl.classList.add('hidden');
       updateSelectionVisuals();
 
-      // Calcul de tous les mots possibles sur la grille 4x4
       const allPossibleWords = solveBoardWords(boardLetters);
       const possibleSet = new Set(allPossibleWords);
       let maxPossibleScore = 0;
@@ -1428,7 +1428,6 @@
         maxPossibleScore += computePoints(w);
       }
 
-      // Évaluation des mots proposés par le joueur
       let totalScore = 0;
       let validFoundCount = 0;
       const validFoundSet = new Set();
@@ -1444,121 +1443,4 @@
         return { word, valid, pts };
       });
 
-      // Mots possibles non trouvés, triés par points décroissants puis ordre alphabétique
-      const missedWords = allPossibleWords
-        .filter(w => !validFoundSet.has(w))
-        .map(w => ({ word: w, pts: computePoints(w) }))
-        .sort((a, b) => (b.pts - a.pts) || a.word.localeCompare(b.word, 'fr'));
-
-      document.getElementById('final-score').textContent = totalScore;
-      document.getElementById('final-score-detail').textContent =
-        `${totalScore > 1 ? 'points' : 'point'} sur ${maxPossibleScore} possibles`;
-      document.getElementById('final-words-detail').textContent =
-        `${validFoundCount} ${validFoundCount > 1 ? 'mots trouvés' : 'mot trouvé'} sur ${allPossibleWords.length} possibles`;
-
-      // Synchronisation du score en mode multijoueur
-      const mpScoreboardEl = document.getElementById('mp-end-scoreboard');
-      const endReplayBtn = document.getElementById('end-replay-btn');
-      if (isMultiplayer) {
-        endReplayBtn.textContent = 'Salon';
-        if (isRoomHost) {
-          recordMultiplayerScore(myPlayerShortId, 'Hôte', totalScore, validFoundCount);
-          broadcastFromHost({
-            type: 'SCOREBOARD_UPDATE',
-            scores: mpRemoteScores
-          });
-        } else {
-          recordMultiplayerScore(myPlayerShortId, 'Joueur ' + myPlayerShortId, totalScore, validFoundCount);
-          if (mpHostConn && mpHostConn.open) {
-            mpHostConn.send({
-              type: 'PLAYER_SCORE',
-              playerId: myPlayerShortId,
-              label: 'Joueur ' + myPlayerShortId,
-              score: totalScore,
-              wordsCount: validFoundCount
-            });
-          }
-        }
-      } else {
-        mpScoreboardEl.classList.add('hidden');
-        endReplayBtn.textContent = 'Rejouer';
-      }
-
-      const resultsListEl = document.getElementById('results-list');
-      let html = '';
-
-      if (evaluated.length === 0) {
-        html += '<div class="text-center text-slate-400 text-xs py-3">Aucun mot proposé durant cette manche.</div>';
-      } else {
-        html += evaluated.map(item => {
-          if (item.valid) {
-            return `
-              <div class="flex items-center justify-between bg-slate-900 border border-emerald-500/30 rounded-xl px-3 py-1.5">
-                <div class="flex items-center gap-2">
-                  <span class="w-4 h-4 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black shrink-0">✓</span>
-                  <span class="font-extrabold text-white tracking-wider text-sm">${item.word}</span>
-                  <span class="text-xs text-slate-400">(${item.word.length} l.)</span>
-                </div>
-                <span class="font-black text-amber-400 text-sm tabular-fixed">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
-              </div>
-            `;
-          } else {
-            return `
-              <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-1.5 opacity-75">
-                <div class="flex items-center gap-2">
-                  <span class="w-4 h-4 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center text-[11px] font-black shrink-0">✕</span>
-                  <span class="font-bold text-slate-400 line-through tracking-wider text-sm">${item.word}</span>
-                  <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
-                </div>
-                <span class="font-bold text-slate-500 text-sm tabular-fixed">0 pt</span>
-              </div>
-            `;
-          }
-        }).join('');
-      }
-
-      if (missedWords.length > 0) {
-        html += `
-          <div class="pt-2.5 pb-1">
-            <hr class="border-slate-800 mb-2" />
-            <div class="text-xs font-bold text-slate-400 px-1 mb-1">autres mots non trouvés :</div>
-          </div>
-        `;
-        html += missedWords.map(item => `
-          <div class="flex items-center justify-between bg-slate-900/40 border border-slate-800/80 rounded-xl px-3 py-1.5">
-            <div class="flex items-center gap-2">
-              <span class="w-4 h-4 shrink-0" aria-hidden="true"></span>
-              <span class="font-semibold text-slate-300 tracking-wider text-sm">${item.word}</span>
-              <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
-            </div>
-            <span class="font-bold text-slate-400 text-sm tabular-fixed">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
-          </div>
-        `).join('');
-      }
-
-      resultsListEl.innerHTML = html;
-      resultsListEl.scrollTop = 0;
-
-      setExpandedResultsLayout(true);
-      document.getElementById('overlay-end').classList.remove('hidden');
-    }
-
-    function viewBoardAfterEnd() {
-      setExpandedResultsLayout(false);
-      document.getElementById('overlay-end').classList.add('hidden');
-      document.getElementById('post-game-bar').classList.remove('hidden');
-    }
-
-    function reopenResults() {
-      document.getElementById('post-game-bar').classList.add('hidden');
-      setExpandedResultsLayout(true);
-      document.getElementById('overlay-end').classList.remove('hidden');
-    }
-
-    // Initialisation au chargement
-    boardLetters = rollDice();
-    renderBoard();
-    loadSavedDictionary();
-  </script>
-</body>
-</html>
+      const missedWords = allPossible
