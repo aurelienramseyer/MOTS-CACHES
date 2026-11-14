@@ -57,43 +57,38 @@
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-5">
+<body class="h-[100dvh] flex flex-col items-center p-2 sm:p-4 overflow-hidden">
 
-  <div class="w-full max-w-md flex flex-col gap-3 my-auto">
+  <div class="w-full max-w-md h-full flex flex-col gap-2">
 
-    <!-- En-tête 100% figé (aucune oscillation lors du décompte) -->
-    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-2.5 shadow-lg">
-      <div class="flex items-center gap-3 min-w-0 flex-1">
-        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-md shrink-0">
+    <!-- En-tête compact et figé -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl px-3 py-2 flex items-center justify-between gap-2 shadow-lg shrink-0">
+      <div class="flex items-center gap-2.5 min-w-0 flex-1">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shrink-0">
           M
         </div>
         <div class="min-w-0 flex-1">
-          <h1 class="font-black text-lg tracking-wide text-amber-400 leading-tight whitespace-nowrap">MOTS CACHÉS</h1>
-          <div class="flex items-start gap-1.5 mt-1 min-h-[2.25rem]">
-            <span id="dict-dot" class="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1"></span>
-            <span id="dict-status" class="text-xs text-slate-300 leading-snug break-words">Vérification du dictionnaire...</span>
+          <h1 class="font-black text-base tracking-wide text-amber-400 leading-none whitespace-nowrap">MOTS CACHÉS</h1>
+          <div class="flex items-center gap-1.5 mt-1">
+            <span id="dict-dot" class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+            <span id="dict-status" class="text-xs text-slate-300 leading-none whitespace-nowrap">0k mots</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-2 shrink-0">
-        <div id="timer-box" class="w-[88px] justify-center bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-amber-400 shrink-0">
+        <div id="timer-box" class="w-[84px] justify-center bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-amber-400 shrink-0">
           <span class="text-xs opacity-75">⏱</span>
           <span id="timer-display">02:00</span>
         </div>
-        <button id="open-dict-modal-btn" onclick="openDictModal()" title="Gérer / Importer des dictionnaires" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 active:scale-95 transition shrink-0">
+        <button id="open-dict-modal-btn" onclick="openDictModal()" title="Gérer / Importer des dictionnaires" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 active:scale-95 transition shrink-0">
           📚
         </button>
       </div>
     </header>
 
-    <!-- Mot en cours de formation (hauteur fixe pour éviter tout saut) -->
-    <div id="current-word-bar" class="bg-slate-900/90 border border-slate-800 rounded-2xl px-4 h-[48px] flex items-center justify-center shadow-inner">
-      <span id="current-word-text" class="text-slate-500 text-sm font-semibold tracking-wider">Glissez sur les lettres...</span>
-    </div>
-
-    <!-- Zone principale : Grille 4x4 + Écrans superposés -->
-    <div class="relative w-full aspect-square bg-slate-900/95 border-2 border-amber-500/40 rounded-3xl p-3 shadow-2xl">
+    <!-- Zone principale : Grille 4x4 + Écrans superposés (s'étend jusqu'en bas à la fin) -->
+    <div id="main-stage" class="relative w-full aspect-square bg-slate-900/95 border-2 border-amber-500/40 rounded-3xl p-3 shadow-2xl shrink-0">
 
       <!-- Grille des 16 dés -->
       <div id="board" class="relative w-full h-full grid grid-cols-4 grid-rows-4 gap-2.5">
@@ -128,26 +123,23 @@
         </button>
       </div>
 
-      <!-- Écran de fin / Résultats -->
+      <!-- Écran de fin / Résultats (étendu jusqu'en bas pour maximiser la liste de mots) -->
       <div id="overlay-end" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col overflow-hidden z-30 animate-pop">
-        <div class="bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-center text-slate-950 shrink-0">
-          <div class="text-xs font-black uppercase tracking-widest opacity-85">TEMPS ÉCOULÉ !</div>
-          <div class="mt-0.5 flex items-baseline justify-center gap-1.5">
-            <span id="final-score" class="text-4xl font-black tabular-fixed">0</span>
-            <span id="final-score-label" class="text-lg font-extrabold">points</span>
+        <div class="bg-gradient-to-r from-amber-400 to-orange-500 py-2.5 px-4 text-center text-slate-950 shrink-0">
+          <div class="flex items-baseline justify-center gap-1.5">
+            <span id="final-score" class="text-3xl font-black tabular-fixed leading-none">0</span>
+            <span id="final-score-label" class="text-base font-extrabold leading-none">points</span>
           </div>
-          <div id="final-dict-info" class="text-xs font-semibold opacity-90 mt-0.5">Vérifié avec votre dictionnaire local</div>
         </div>
 
-        <div class="p-3.5 flex-1 flex flex-col min-h-0">
-          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Détail de vos mots</div>
-          <div id="results-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1"></div>
+        <div class="p-2.5 flex-1 flex flex-col min-h-0">
+          <div id="results-list" class="flex-1 overflow-y-auto space-y-1 pr-1"></div>
 
-          <div class="grid grid-cols-2 gap-2.5 pt-3 mt-2 border-t border-slate-800 shrink-0">
-            <button onclick="viewBoardAfterEnd()" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm active:scale-95 transition">
+          <div class="grid grid-cols-2 gap-2 pt-2 mt-1.5 border-t border-slate-800 shrink-0">
+            <button onclick="viewBoardAfterEnd()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm active:scale-95 transition">
               Voir la grille
             </button>
-            <button onclick="startGame()" class="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+            <button onclick="startGame()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
               Rejouer
             </button>
           </div>
@@ -157,30 +149,30 @@
     </div>
 
     <!-- Barre d'action quand on consulte la grille après la fin -->
-    <div id="post-game-bar" class="hidden flex gap-2.5">
-      <button onclick="reopenResults()" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 border border-slate-700 text-amber-400 font-bold text-sm active:scale-95 transition">
+    <div id="post-game-bar" class="hidden flex gap-2.5 shrink-0">
+      <button onclick="reopenResults()" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 border border-slate-700 text-amber-400 font-bold text-sm active:scale-95 transition">
         ← Voir les résultats
       </button>
-      <button onclick="startGame()" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+      <button onclick="startGame()" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
         Nouvelle partie
       </button>
     </div>
 
-    <!-- Liste des mots trouvés pendant la partie (sans points affichés) -->
-    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-lg">
-      <div class="flex items-center justify-between mb-2">
+    <!-- Liste des mots trouvés pendant la partie (masquée sur l'écran des résultats) -->
+    <section id="found-words-section" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-lg flex-1 flex flex-col min-h-0">
+      <div class="flex items-center justify-between mb-1.5 shrink-0">
         <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
           Mots enregistrés (<span id="found-count" class="tabular-fixed">0</span>)
         </span>
         <span class="text-xs text-amber-400/90 font-medium">Points révélés à la fin</span>
       </div>
-      <div id="found-words-container" class="min-h-[44px] max-h-28 overflow-y-auto flex flex-wrap gap-1.5 items-center">
+      <div id="found-words-container" class="flex-1 overflow-y-auto flex flex-wrap gap-1.5 content-start items-center">
         <span class="text-slate-500 text-xs italic">Aucun mot formé pour l'instant...</span>
       </div>
     </section>
 
     <!-- Pied de page barème -->
-    <footer class="text-center text-[11px] text-slate-500 pb-1">
+    <footer id="footer-bar" class="text-center text-[11px] text-slate-500 shrink-0">
       Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire
     </footer>
 
@@ -307,18 +299,16 @@
       modalCount.textContent = count.toLocaleString('fr-FR');
 
       if (count > 0) {
-        dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0 mt-1';
-        const filesInfo = importedFileNames.length > 0
-          ? ` • ${importedFileNames.length} fichier${importedFileNames.length > 1 ? 's' : ''}`
-          : '';
-        statusEl.textContent = `${count.toLocaleString('fr-FR')} mots en cache${filesInfo}`;
+        dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+        const kCount = Math.floor(count / 1000);
+        statusEl.textContent = `${kCount}k mots`;
         noDictBanner.classList.add('hidden');
         modalFiles.textContent = importedFileNames.length > 0
           ? 'Fichiers : ' + importedFileNames.join(', ')
           : 'Base enregistrée sur votre appareil.';
       } else {
-        dotEl.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1';
-        statusEl.textContent = 'Aucun dictionnaire (appuyez sur 📚)';
+        dotEl.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
+        statusEl.textContent = '0k mots';
         noDictBanner.classList.remove('hidden');
         modalFiles.textContent = 'Aucun fichier importé pour le moment.';
       }
@@ -414,9 +404,7 @@
             if (f && f.form) addCandidateWord(f.form, targetSet);
           }
         }
-      } catch (_) {
-        // Ignorer les lignes JSON invalides
-      }
+      } catch (_) {}
     }
 
     async function streamAndParseFile(file, targetSet, onProgress) {
@@ -540,12 +528,13 @@
 
     const boardEl = document.getElementById('board');
     const polylineEl = document.getElementById('drag-polyline');
-    const currentWordText = document.getElementById('current-word-text');
-    const currentWordBar = document.getElementById('current-word-bar');
     const foundWordsContainer = document.getElementById('found-words-container');
+    const foundWordsSection = document.getElementById('found-words-section');
     const foundCountEl = document.getElementById('found-count');
     const timerDisplay = document.getElementById('timer-display');
     const timerBox = document.getElementById('timer-box');
+    const mainStageEl = document.getElementById('main-stage');
+    const footerBarEl = document.getElementById('footer-bar');
 
     function rollDice() {
       const diceCopy = [...FRENCH_DICE];
@@ -599,15 +588,6 @@
         polylineEl.setAttribute('points', pts);
       } else {
         polylineEl.setAttribute('points', '');
-      }
-
-      if (selectedIndices.length > 0) {
-        const word = selectedIndices.map(i => boardLetters[i]).join('');
-        currentWordText.textContent = word;
-        currentWordText.className = 'text-amber-400 text-xl font-black tracking-widest';
-      } else {
-        currentWordText.textContent = 'Glissez sur les lettres...';
-        currentWordText.className = 'text-slate-500 text-sm font-semibold tracking-wider';
       }
     }
 
@@ -670,8 +650,8 @@
           foundWords.push(word);
           renderFoundWordsList();
         } else {
-          currentWordBar.classList.add('animate-shake');
-          setTimeout(() => currentWordBar.classList.remove('animate-shake'), 260);
+          foundWordsSection.classList.add('animate-shake');
+          setTimeout(() => foundWordsSection.classList.remove('animate-shake'), 260);
         }
       }
 
@@ -710,6 +690,20 @@
       return 1 + (len - 4) * 2;
     }
 
+    function setExpandedResultsLayout(expanded) {
+      if (expanded) {
+        mainStageEl.classList.remove('aspect-square', 'shrink-0');
+        mainStageEl.classList.add('flex-1', 'min-h-0');
+        foundWordsSection.classList.add('hidden');
+        footerBarEl.classList.add('hidden');
+      } else {
+        mainStageEl.classList.remove('flex-1', 'min-h-0');
+        mainStageEl.classList.add('aspect-square', 'shrink-0');
+        foundWordsSection.classList.remove('hidden');
+        footerBarEl.classList.remove('hidden');
+      }
+    }
+
     function startGame() {
       if (dictionarySet.size === 0) {
         openDictModal();
@@ -724,12 +718,13 @@
       timeLeft = 120;
       isPlaying = true;
 
+      setExpandedResultsLayout(false);
       document.getElementById('overlay-start').classList.add('hidden');
       document.getElementById('overlay-end').classList.add('hidden');
       document.getElementById('post-game-bar').classList.add('hidden');
 
       timerDisplay.textContent = formatTime(timeLeft);
-      timerBox.className = 'w-[88px] justify-center bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-amber-400 shrink-0';
+      timerBox.className = 'w-[84px] justify-center bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-amber-400 shrink-0';
 
       renderBoard();
       updateSelectionVisuals();
@@ -739,7 +734,7 @@
         timeLeft--;
         timerDisplay.textContent = formatTime(Math.max(0, timeLeft));
         if (timeLeft <= 15) {
-          timerBox.className = 'w-[88px] justify-center bg-rose-950/70 border border-rose-500/60 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-rose-400 animate-pulse shrink-0';
+          timerBox.className = 'w-[84px] justify-center bg-rose-950/70 border border-rose-500/60 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-rose-400 animate-pulse shrink-0';
         }
         if (timeLeft <= 0) {
           endGame();
@@ -764,8 +759,6 @@
 
       document.getElementById('final-score').textContent = totalScore;
       document.getElementById('final-score-label').textContent = totalScore > 1 ? 'points' : 'point';
-      document.getElementById('final-dict-info').textContent =
-        `Dictionnaire local (${dictionarySet.size.toLocaleString('fr-FR')} mots)`;
 
       const resultsListEl = document.getElementById('results-list');
       if (evaluated.length === 0) {
@@ -774,9 +767,9 @@
         resultsListEl.innerHTML = evaluated.map(item => {
           if (item.valid) {
             return `
-              <div class="flex items-center justify-between bg-slate-900 border border-emerald-500/30 rounded-xl px-3 py-2">
+              <div class="flex items-center justify-between bg-slate-900 border border-emerald-500/30 rounded-xl px-3 py-1.5">
                 <div class="flex items-center gap-2">
-                  <span class="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">✓</span>
+                  <span class="w-4 h-4 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">✓</span>
                   <span class="font-extrabold text-white tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-400">(${item.word.length} l.)</span>
                 </div>
@@ -785,9 +778,9 @@
             `;
           } else {
             return `
-              <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 opacity-75">
+              <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-1.5 opacity-75">
                 <div class="flex items-center gap-2">
-                  <span class="w-5 h-5 rounded-md bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs font-black">✕</span>
+                  <span class="w-4 h-4 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center text-[11px] font-black">✕</span>
                   <span class="font-bold text-slate-400 line-through tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
                 </div>
@@ -798,16 +791,19 @@
         }).join('');
       }
 
+      setExpandedResultsLayout(true);
       document.getElementById('overlay-end').classList.remove('hidden');
     }
 
     function viewBoardAfterEnd() {
+      setExpandedResultsLayout(false);
       document.getElementById('overlay-end').classList.add('hidden');
       document.getElementById('post-game-bar').classList.remove('hidden');
     }
 
     function reopenResults() {
       document.getElementById('post-game-bar').classList.add('hidden');
+      setExpandedResultsLayout(true);
       document.getElementById('overlay-end').classList.remove('hidden');
     }
 
