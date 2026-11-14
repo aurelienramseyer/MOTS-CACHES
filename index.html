@@ -23,6 +23,9 @@
     #board {
       touch-action: none;
     }
+    .tabular-fixed {
+      font-variant-numeric: tabular-nums;
+    }
     .die-cell {
       transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
     }
@@ -58,37 +61,34 @@
 
   <div class="w-full max-w-md flex flex-col gap-3 my-auto">
 
-    <!-- En-tête -->
-    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-start justify-between gap-2 shadow-lg">
-      <div class="flex items-start gap-3 min-w-0 flex-1">
-        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-md shrink-0 mt-0.5">
+    <!-- En-tête 100% figé (aucune oscillation lors du décompte) -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-2.5 shadow-lg">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-md shrink-0">
           M
         </div>
         <div class="min-w-0 flex-1">
-          <h1 class="font-black text-lg tracking-wide text-amber-400 leading-tight">MOTS CACHÉS</h1>
-          <div class="flex items-start gap-1.5 mt-1">
-            <span id="dict-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0 mt-1"></span>
-            <span id="dict-status" class="text-xs text-slate-300 leading-snug break-words">Initialisation du dictionnaire...</span>
-          </div>
-          <div id="dict-progress-wrap" class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden hidden">
-            <div id="dict-progress-bar" class="bg-gradient-to-r from-amber-400 to-orange-500 h-full transition-all duration-150" style="width: 0%"></div>
+          <h1 class="font-black text-lg tracking-wide text-amber-400 leading-tight whitespace-nowrap">MOTS CACHÉS</h1>
+          <div class="flex items-start gap-1.5 mt-1 min-h-[2.25rem]">
+            <span id="dict-dot" class="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1"></span>
+            <span id="dict-status" class="text-xs text-slate-300 leading-snug break-words">Vérification du dictionnaire...</span>
           </div>
         </div>
       </div>
 
       <div class="flex items-center gap-2 shrink-0">
-        <div id="timer-box" class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-amber-400">
+        <div id="timer-box" class="w-[88px] justify-center bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-amber-400 shrink-0">
           <span class="text-xs opacity-75">⏱</span>
           <span id="timer-display">02:00</span>
         </div>
-        <button id="refresh-dict-btn" onclick="forceReloadDictionary()" title="Re-télécharger les dictionnaires" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 active:scale-95 transition">
-          🔄
+        <button id="open-dict-modal-btn" onclick="openDictModal()" title="Gérer / Importer des dictionnaires" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 active:scale-95 transition shrink-0">
+          📚
         </button>
       </div>
     </header>
 
-    <!-- Mot en cours de formation -->
-    <div id="current-word-bar" class="bg-slate-900/90 border border-slate-800 rounded-2xl py-2.5 px-4 min-h-[48px] flex items-center justify-center shadow-inner">
+    <!-- Mot en cours de formation (hauteur fixe pour éviter tout saut) -->
+    <div id="current-word-bar" class="bg-slate-900/90 border border-slate-800 rounded-2xl px-4 h-[48px] flex items-center justify-center shadow-inner">
       <span id="current-word-text" class="text-slate-500 text-sm font-semibold tracking-wider">Glissez sur les lettres...</span>
     </div>
 
@@ -108,9 +108,21 @@
           4×4
         </div>
         <h2 class="text-2xl font-extrabold text-white mb-2">Prêt à jouer ?</h2>
-        <p class="text-slate-300 text-sm leading-relaxed mb-6 max-w-xs">
+        <p class="text-slate-300 text-sm leading-relaxed mb-5 max-w-xs">
           Reliez les lettres adjacentes (y compris en diagonale) pendant <strong class="text-amber-400">2 minutes</strong>. Vos points seront calculés à la fin !
         </p>
+
+        <!-- Invite visible uniquement si aucun dictionnaire n'est encore enregistré -->
+        <div id="no-dict-banner" class="hidden w-full max-w-xs mb-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-left">
+          <div class="text-xs font-bold text-amber-400 mb-1">Aucun dictionnaire enregistré</div>
+          <p class="text-[11px] text-slate-300 leading-snug mb-2">
+            Importez une seule fois votre ou vos fichiers dictionnaires (.txt, .dic, .gz, .jsonl.gz) depuis votre téléphone.
+          </p>
+          <button onclick="openDictModal()" class="w-full py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-bold text-xs transition">
+            📂 Importer mon dictionnaire (1 seule fois)
+          </button>
+        </div>
+
         <button id="start-btn" onclick="startGame()" class="w-full max-w-xs py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-base tracking-wide shadow-lg shadow-orange-500/25 active:scale-95 transition">
           LANCER LA PARTIE
         </button>
@@ -121,10 +133,10 @@
         <div class="bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-center text-slate-950 shrink-0">
           <div class="text-xs font-black uppercase tracking-widest opacity-85">TEMPS ÉCOULÉ !</div>
           <div class="mt-0.5 flex items-baseline justify-center gap-1.5">
-            <span id="final-score" class="text-4xl font-black">0</span>
+            <span id="final-score" class="text-4xl font-black tabular-fixed">0</span>
             <span id="final-score-label" class="text-lg font-extrabold">points</span>
           </div>
-          <div id="final-dict-info" class="text-xs font-semibold opacity-90 mt-0.5">Vérifié avec le méga-dictionnaire FR</div>
+          <div id="final-dict-info" class="text-xs font-semibold opacity-90 mt-0.5">Vérifié avec votre dictionnaire local</div>
         </div>
 
         <div class="p-3.5 flex-1 flex flex-col min-h-0">
@@ -158,7 +170,7 @@
     <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-lg">
       <div class="flex items-center justify-between mb-2">
         <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
-          Mots enregistrés (<span id="found-count">0</span>)
+          Mots enregistrés (<span id="found-count" class="tabular-fixed">0</span>)
         </span>
         <span class="text-xs text-amber-400/90 font-medium">Points révélés à la fin</span>
       </div>
@@ -172,6 +184,58 @@
       Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire
     </footer>
 
+  </div>
+
+  <!-- Modale de gestion / importation des dictionnaires locaux -->
+  <div id="dict-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl animate-pop">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-extrabold text-white flex items-center gap-2">
+          <span>📚</span> Dictionnaire local
+        </h3>
+        <button onclick="closeDictModal()" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold">
+          ✕
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed mb-3">
+        Sélectionnez un ou plusieurs fichiers téléchargés sur votre téléphone (<code class="text-amber-400">.txt</code>, <code class="text-amber-400">.dic</code>, <code class="text-amber-400">.gz</code> ou <code class="text-amber-400">.jsonl.gz</code>). Ils seront nettoyés (sans accents), fusionnés et enregistrés définitivement dans votre navigateur.
+      </p>
+
+      <!-- Résumé de la base actuelle -->
+      <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3 mb-4">
+        <div class="flex items-center justify-between text-xs mb-1">
+          <span class="text-slate-400">Mots uniques enregistrés :</span>
+          <span id="modal-word-count" class="font-black text-amber-400 tabular-fixed">0</span>
+        </div>
+        <div id="modal-files-list" class="text-[11px] text-slate-400 break-words leading-snug">
+          Aucun fichier importé pour le moment.
+        </div>
+      </div>
+
+      <!-- Progression d'importation -->
+      <div id="import-progress-box" class="hidden mb-4">
+        <div id="import-progress-text" class="text-xs text-amber-300 font-semibold mb-1.5">Lecture des fichiers...</div>
+        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div id="import-progress-bar" class="bg-gradient-to-r from-amber-400 to-orange-500 h-full transition-all duration-150" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Sélecteur de fichiers caché -->
+      <input id="dict-file-input" type="file" multiple accept=".txt,.dic,.gz,.jsonl,.json,text/plain,application/gzip" class="hidden" onchange="handleFilesSelected(event)" />
+
+      <div class="flex flex-col gap-2.5">
+        <button id="btn-merge-files" onclick="triggerFilePicker('merge')" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+          ➕ Importer et fusionner des fichiers
+        </button>
+        <button id="btn-replace-files" onclick="triggerFilePicker('replace')" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs active:scale-95 transition">
+          🔄 Remplacer par de nouveaux fichiers
+        </button>
+        <button id="btn-clear-dict" onclick="clearSavedDictionary()" class="w-full py-2 px-4 rounded-xl text-rose-400 hover:bg-rose-950/40 font-semibold text-xs transition">
+          Vider le dictionnaire enregistré
+        </button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -198,48 +262,16 @@
     ];
 
     // =========================================================================
-    // 2. MÉGA-DICTIONNAIRE FRANÇAIS MULTI-SOURCES + CACHE INDEXEDDB PERSISTANT
+    // 2. STOCKAGE INDEXEDDB PERSISTANT + IMPORTATION & FUSION DE FICHIERS LOCAUX
     // =========================================================================
-    const DB_NAME = 'MotsCachesDB';
-    const DB_VERSION = 4;
+    const DB_NAME = 'MotsCachesUserDictDB';
+    const DB_VERSION = 1;
     const STORE_NAME = 'dictionaries';
-    const DICT_KEY = 'fr_mega_dict_v4';
-
-    // Sources accessibles directement depuis le navigateur (CORS autorisé)
-    const DICT_SOURCES = [
-      {
-        name: 'Wiktionnaire FR (toutes formes)',
-        urls: [
-          'https://cdn.jsdelivr.net/gh/hbenbel/French-Dictionary@master/dictionary/dictionary.txt',
-          'https://raw.githubusercontent.com/hbenbel/French-Dictionary/master/dictionary/dictionary.txt'
-        ]
-      },
-      {
-        name: 'Lexique Français Étendu (conjugaisons & variantes)',
-        urls: [
-          'https://cdn.jsdelivr.net/gh/lorenbrichter/Words@master/Words/fr.txt',
-          'https://raw.githubusercontent.com/lorenbrichter/Words/master/Words/fr.txt'
-        ]
-      },
-      {
-        name: 'Dictionnaire Hunspell / LibreOffice FR',
-        urls: [
-          'https://cdn.jsdelivr.net/gh/titoBouzout/Dictionaries@master/French.dic',
-          'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/French.dic'
-        ]
-      },
-      {
-        name: 'Base ODS / Scrabble & Gutenberg FR',
-        urls: [
-          'https://cdn.jsdelivr.net/gh/chrplr/openlexicon@master/datasets-info/Liste-de-mots-francais-Gutenberg/liste.de.mots.francais.frgut.txt',
-          'https://raw.githubusercontent.com/takabu/french-words/master/words.txt'
-        ]
-      }
-    ];
+    const DICT_KEY = 'user_merged_fr_dict';
 
     let dictionarySet = new Set();
-    let dictionaryReady = false;
-    let activeSourceCount = 0;
+    let importedFileNames = [];
+    let importMode = 'merge';
 
     function normalizeWord(str) {
       return str
@@ -249,182 +281,249 @@
         .toUpperCase();
     }
 
-    function setDictStatus(text, state = 'loading', progress = null) {
+    function addCandidateWord(raw, targetSet) {
+      if (!raw) return;
+      let w = raw.trim();
+      if (!w) return;
+      const slashIdx = w.indexOf('/');
+      if (slashIdx > 0) w = w.slice(0, slashIdx);
+      const tabIdx = w.indexOf('\t');
+      if (tabIdx > 0) w = w.slice(0, tabIdx);
+
+      const clean = normalizeWord(w);
+      if (clean.length >= 3 && clean.length <= 16 && /^[A-Z]+$/.test(clean)) {
+        targetSet.add(clean);
+      }
+    }
+
+    function updateHeaderStatus() {
       const statusEl = document.getElementById('dict-status');
       const dotEl = document.getElementById('dict-dot');
-      const progWrap = document.getElementById('dict-progress-wrap');
-      const progBar = document.getElementById('dict-progress-bar');
+      const noDictBanner = document.getElementById('no-dict-banner');
+      const modalCount = document.getElementById('modal-word-count');
+      const modalFiles = document.getElementById('modal-files-list');
 
-      statusEl.textContent = text;
-      dotEl.className = 'w-2 h-2 rounded-full shrink-0 mt-1 ' + (
-        state === 'ready' ? 'bg-emerald-400' :
-        state === 'error' ? 'bg-rose-400' :
-        'bg-amber-400 animate-pulse'
-      );
+      const count = dictionarySet.size;
+      modalCount.textContent = count.toLocaleString('fr-FR');
 
-      if (progress !== null) {
-        progWrap.classList.remove('hidden');
-        progBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+      if (count > 0) {
+        dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0 mt-1';
+        const filesInfo = importedFileNames.length > 0
+          ? ` • ${importedFileNames.length} fichier${importedFileNames.length > 1 ? 's' : ''}`
+          : '';
+        statusEl.textContent = `${count.toLocaleString('fr-FR')} mots en cache${filesInfo}`;
+        noDictBanner.classList.add('hidden');
+        modalFiles.textContent = importedFileNames.length > 0
+          ? 'Fichiers : ' + importedFileNames.join(', ')
+          : 'Base enregistrée sur votre appareil.';
       } else {
-        progWrap.classList.add('hidden');
+        dotEl.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1';
+        statusEl.textContent = 'Aucun dictionnaire (appuyez sur 📚)';
+        noDictBanner.classList.remove('hidden');
+        modalFiles.textContent = 'Aucun fichier importé pour le moment.';
       }
     }
 
     function openDictionaryDB() {
       return new Promise((resolve, reject) => {
         if (!('indexedDB' in window)) {
-          reject(new Error('IndexedDB non disponible'));
+          reject(new Error('IndexedDB non supporté'));
           return;
         }
         const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
-          for (const name of Array.from(db.objectStoreNames)) {
-            db.deleteObjectStore(name);
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
           }
-          db.createObjectStore(STORE_NAME);
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
     }
 
-    async function loadFromIndexedDB() {
+    async function loadSavedDictionary() {
       try {
         const db = await openDictionaryDB();
-        return await new Promise((resolve) => {
+        const saved = await new Promise((resolve) => {
           const tx = db.transaction(STORE_NAME, 'readonly');
           const store = tx.objectStore(STORE_NAME);
-          const getReq = store.get(DICT_KEY);
-          getReq.onsuccess = () => resolve(getReq.result || null);
-          getReq.onerror = () => resolve(null);
+          const req = store.get(DICT_KEY);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
         });
+
+        if (saved && saved.wordsText) {
+          const arr = saved.wordsText.split('\n');
+          dictionarySet = new Set(arr.filter(Boolean));
+          importedFileNames = Array.isArray(saved.fileNames) ? saved.fileNames : [];
+        } else {
+          dictionarySet = new Set();
+          importedFileNames = [];
+        }
       } catch (e) {
-        return null;
+        console.warn('Lecture IndexedDB:', e);
+        dictionarySet = new Set();
+        importedFileNames = [];
       }
+      updateHeaderStatus();
     }
 
-    async function saveToIndexedDB(payload) {
+    async function persistDictionary() {
+      const db = await openDictionaryDB();
+      const packedString = Array.from(dictionarySet).join('\n');
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.put({
+          wordsText: packedString,
+          fileNames: importedFileNames,
+          count: dictionarySet.size,
+          updatedAt: Date.now()
+        }, DICT_KEY);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function openDictModal() {
+      if (isPlaying) return;
+      updateHeaderStatus();
+      document.getElementById('import-progress-box').classList.add('hidden');
+      document.getElementById('dict-modal').classList.remove('hidden');
+    }
+
+    function closeDictModal() {
+      document.getElementById('dict-modal').classList.add('hidden');
+    }
+
+    function triggerFilePicker(mode) {
+      importMode = mode;
+      const input = document.getElementById('dict-file-input');
+      input.value = '';
+      input.click();
+    }
+
+    function extractWordsFromJsonlLine(line, targetSet) {
       try {
-        const db = await openDictionaryDB();
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, 'readwrite');
-          const store = tx.objectStore(STORE_NAME);
-          const putReq = store.put(payload, DICT_KEY);
-          putReq.onsuccess = () => resolve();
-          putReq.onerror = () => reject(putReq.error);
-        });
-      } catch (e) {
-        console.warn('Sauvegarde IndexedDB ignorée:', e);
-      }
-    }
-
-    function parseAndMergeWords(rawText, targetSet) {
-      const lines = rawText.split(/\r?\n/);
-      for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line || line.startsWith('#') || line.startsWith('//')) continue;
-        const slashIdx = line.indexOf('/');
-        if (slashIdx > 0) line = line.slice(0, slashIdx);
-        const spaceIdx = line.indexOf('\t');
-        if (spaceIdx > 0) line = line.slice(0, spaceIdx);
-
-        const clean = normalizeWord(line);
-        if (clean.length >= 3 && clean.length <= 16 && /^[A-Z]+$/.test(clean)) {
-          targetSet.add(clean);
-        }
-      }
-    }
-
-    async function fetchFirstAvailableUrl(urls) {
-      for (const url of urls) {
-        try {
-          const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
-            return await res.text();
+        const obj = JSON.parse(line);
+        if (obj.word) addCandidateWord(obj.word, targetSet);
+        if (Array.isArray(obj.forms)) {
+          for (let i = 0; i < obj.forms.length; i++) {
+            const f = obj.forms[i];
+            if (f && f.form) addCandidateWord(f.form, targetSet);
           }
-        } catch (err) {
-          console.warn('Échec miroir:', url, err);
         }
+      } catch (_) {
+        // Ignorer les lignes JSON invalides
       }
-      return null;
     }
 
-    async function downloadAndBuildMegaDictionary() {
-      const mergedSet = new Set();
-      let loadedSources = 0;
+    async function streamAndParseFile(file, targetSet, onProgress) {
+      const isGzip = file.name.toLowerCase().endsWith('.gz');
+      const isJsonl = file.name.toLowerCase().includes('.jsonl');
 
-      for (let i = 0; i < DICT_SOURCES.length; i++) {
-        const src = DICT_SOURCES[i];
-        const pct = Math.round(((i) / DICT_SOURCES.length) * 90) + 5;
-        setDictStatus(`Téléchargement (${i + 1}/${DICT_SOURCES.length}) : ${src.name}...`, 'loading', pct);
+      let byteStream = file.stream();
+      let bytesRead = 0;
+      const totalBytes = file.size || 1;
 
-        const text = await fetchFirstAvailableUrl(src.urls);
-        if (text) {
-          parseAndMergeWords(text, mergedSet);
-          loadedSources++;
+      const progressTracker = new TransformStream({
+        transform(chunk, controller) {
+          bytesRead += chunk.byteLength;
+          onProgress(Math.min(99, Math.round((bytesRead / totalBytes) * 100)));
+          controller.enqueue(chunk);
         }
-      }
-
-      if (loadedSources === 0 || mergedSet.size === 0) {
-        throw new Error('Impossible de télécharger les dictionnaires externes');
-      }
-
-      setDictStatus(`Enregistrement local (${mergedSet.size.toLocaleString('fr-FR')} mots)...`, 'loading', 96);
-
-      const packedString = Array.from(mergedSet).join('\n');
-      await saveToIndexedDB({
-        wordsText: packedString,
-        count: mergedSet.size,
-        sourcesCount: loadedSources,
-        updatedAt: Date.now()
       });
 
-      dictionarySet = mergedSet;
-      activeSourceCount = loadedSources;
-      dictionaryReady = true;
+      byteStream = byteStream.pipeThrough(progressTracker);
 
-      setDictStatus(
-        `Méga-Dictionnaire FR prêt (${dictionarySet.size.toLocaleString('fr-FR')} mots • ${activeSourceCount} bases fusionnées)`,
-        'ready',
-        null
-      );
-    }
+      if (isGzip) {
+        if (!('DecompressionStream' in window)) {
+          throw new Error('Votre navigateur ne supporte pas la décompression .gz directe. Décompressez le fichier en .txt avant de l\'importer.');
+        }
+        byteStream = byteStream.pipeThrough(new DecompressionStream('gzip'));
+      }
 
-    async function initDictionary(forceDownload = false) {
-      try {
-        if (!forceDownload) {
-          setDictStatus('Vérification du méga-dictionnaire local...', 'loading', 15);
-          const cached = await loadFromIndexedDB();
-          if (cached && cached.wordsText && cached.count > 0) {
-            const arr = cached.wordsText.split('\n');
-            dictionarySet = new Set(arr);
-            activeSourceCount = cached.sourcesCount || DICT_SOURCES.length;
-            dictionaryReady = true;
-            setDictStatus(
-              `Méga-Dictionnaire FR prêt (${dictionarySet.size.toLocaleString('fr-FR')} mots • ${activeSourceCount} bases en cache)`,
-              'ready',
-              null
-            );
-            return;
+      const textStream = byteStream.pipeThrough(new TextDecoderStream('utf-8'));
+      const reader = textStream.getReader();
+
+      let leftover = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const combined = leftover + value;
+        const lines = combined.split(/\r?\n/);
+        leftover = lines.pop() || '';
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+          if (isJsonl && line.startsWith('{')) {
+            extractWordsFromJsonlLine(line, targetSet);
+          } else {
+            addCandidateWord(line, targetSet);
           }
         }
-        await downloadAndBuildMegaDictionary();
-      } catch (err) {
-        console.error(err);
-        dictionarySet = new Set();
-        dictionaryReady = false;
-        setDictStatus(
-          `Aucun dictionnaire chargé (0 mot) — Vérifiez le réseau et appuyez sur 🔄`,
-          'error',
-          null
-        );
+      }
+
+      if (leftover) {
+        if (isJsonl && leftover.startsWith('{')) {
+          extractWordsFromJsonlLine(leftover, targetSet);
+        } else {
+          addCandidateWord(leftover, targetSet);
+        }
       }
     }
 
-    function forceReloadDictionary() {
-      if (isPlaying) return;
-      initDictionary(true);
+    async function handleFilesSelected(event) {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+
+      const progBox = document.getElementById('import-progress-box');
+      const progText = document.getElementById('import-progress-text');
+      const progBar = document.getElementById('import-progress-bar');
+
+      progBox.classList.remove('hidden');
+      progBar.style.width = '2%';
+
+      const workingSet = importMode === 'replace' ? new Set() : new Set(dictionarySet);
+      const workingNames = importMode === 'replace' ? [] : [...importedFileNames];
+
+      try {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          await streamAndParseFile(file, workingSet, (pct) => {
+            progText.textContent = `Lecture (${i + 1}/${files.length}) : ${file.name} (${pct}%) — ${workingSet.size.toLocaleString('fr-FR')} mots...`;
+            progBar.style.width = `${pct}%`;
+          });
+          if (!workingNames.includes(file.name)) {
+            workingNames.push(file.name);
+          }
+        }
+
+        progText.textContent = `Enregistrement définitif de ${workingSet.size.toLocaleString('fr-FR')} mots sur votre téléphone...`;
+        progBar.style.width = '100%';
+
+        dictionarySet = workingSet;
+        importedFileNames = workingNames;
+        await persistDictionary();
+
+        updateHeaderStatus();
+        progText.textContent = `Terminé ! ${dictionarySet.size.toLocaleString('fr-FR')} mots enregistrés.`;
+      } catch (err) {
+        console.error(err);
+        progText.textContent = `Erreur : ${err.message || 'Impossible de lire le fichier.'}`;
+      }
+    }
+
+    async function clearSavedDictionary() {
+      dictionarySet = new Set();
+      importedFileNames = [];
+      try {
+        await persistDictionary();
+      } catch (_) {}
+      updateHeaderStatus();
+      document.getElementById('import-progress-box').classList.add('hidden');
     }
 
     // =========================================================================
@@ -612,6 +711,11 @@
     }
 
     function startGame() {
+      if (dictionarySet.size === 0) {
+        openDictModal();
+        return;
+      }
+
       clearInterval(timerInterval);
       boardLetters = rollDice();
       foundWords = [];
@@ -625,7 +729,7 @@
       document.getElementById('post-game-bar').classList.add('hidden');
 
       timerDisplay.textContent = formatTime(timeLeft);
-      timerBox.className = 'bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-amber-400';
+      timerBox.className = 'w-[88px] justify-center bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-amber-400 shrink-0';
 
       renderBoard();
       updateSelectionVisuals();
@@ -635,7 +739,7 @@
         timeLeft--;
         timerDisplay.textContent = formatTime(Math.max(0, timeLeft));
         if (timeLeft <= 15) {
-          timerBox.className = 'bg-rose-950/70 border border-rose-500/60 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-rose-400 animate-pulse';
+          timerBox.className = 'w-[88px] justify-center bg-rose-950/70 border border-rose-500/60 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-base text-rose-400 animate-pulse shrink-0';
         }
         if (timeLeft <= 0) {
           endGame();
@@ -661,7 +765,7 @@
       document.getElementById('final-score').textContent = totalScore;
       document.getElementById('final-score-label').textContent = totalScore > 1 ? 'points' : 'point';
       document.getElementById('final-dict-info').textContent =
-        `Méga-Dictionnaire FR (${dictionarySet.size.toLocaleString('fr-FR')} mots)`;
+        `Dictionnaire local (${dictionarySet.size.toLocaleString('fr-FR')} mots)`;
 
       const resultsListEl = document.getElementById('results-list');
       if (evaluated.length === 0) {
@@ -676,7 +780,7 @@
                   <span class="font-extrabold text-white tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-400">(${item.word.length} l.)</span>
                 </div>
-                <span class="font-black text-amber-400 text-sm">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
+                <span class="font-black text-amber-400 text-sm tabular-fixed">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
               </div>
             `;
           } else {
@@ -687,7 +791,7 @@
                   <span class="font-bold text-slate-400 line-through tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
                 </div>
-                <span class="font-bold text-slate-500 text-sm">0 pt</span>
+                <span class="font-bold text-slate-500 text-sm tabular-fixed">0 pt</span>
               </div>
             `;
           }
@@ -710,7 +814,7 @@
     // Initialisation au chargement
     boardLetters = rollDice();
     renderBoard();
-    initDictionary(false);
+    loadSavedDictionary();
   </script>
 </body>
 </html>
