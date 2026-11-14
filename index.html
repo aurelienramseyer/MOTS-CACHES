@@ -54,8 +54,12 @@
                     <h1 class="text-base sm:text-lg font-extrabold tracking-wide text-amber-400 leading-none">MOTS CACHÉS</h1>
                     <p id="dict-status-text" class="text-[11px] sm:text-xs text-slate-400 mt-1 flex items-center gap-1.5 truncate">
                         <span id="dict-status-dot" class="w-2 h-2 shrink-0 rounded-full bg-amber-400 animate-pulse inline-block"></span>
-                        <span id="dict-status-label" class="truncate">Vérification du dictionnaire...</span>
+                        <span id="dict-status-label" class="truncate">Vérification du Wiktionnaire...</span>
                     </p>
+                    <!-- Barre de progression discrète pendant le téléchargement du Wiktionnaire -->
+                    <div id="dict-progress-wrap" class="hidden w-full h-1 bg-slate-800 rounded-full overflow-hidden mt-1.5">
+                        <div id="dict-progress-bar" class="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-150" style="width: 0%"></div>
+                    </div>
                 </div>
             </div>
 
@@ -64,7 +68,7 @@
                     <span class="text-amber-400 text-sm">⏱</span>
                     <span id="timer-display">02:00</span>
                 </div>
-                <button type="button" id="btn-refresh-dict" title="Actualiser le dictionnaire local" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-base active:scale-95 transition" aria-label="Mettre à jour le dictionnaire">
+                <button type="button" id="btn-refresh-dict" title="Re-télécharger le Wiktionnaire complet" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-base active:scale-95 transition" aria-label="Mettre à jour le dictionnaire">
                     🔄
                 </button>
             </div>
@@ -162,7 +166,7 @@
             </div>
             <div class="p-4 flex flex-col gap-2.5 text-sm text-slate-300">
                 <p>• <strong class="text-white">16 dés français (96 faces)</strong> : fréquences françaises avec <strong class="text-amber-400">1 seul Z</strong> et <strong class="text-amber-400">1 seul W</strong> dans tout le jeu.</p>
-                <p>• <strong class="text-white">Dictionnaire local hors-ligne</strong> : téléchargé automatiquement lors de votre première visite et mis en cache sur votre appareil (336 000+ mots, sans accents et avec verbes conjugués).</p>
+                <p>• <strong class="text-white">Wiktionnaire français complet hors-ligne</strong> : téléchargé et décompressé automatiquement lors de votre première visite, puis mis en cache sur votre appareil (plus d'un million de formes fléchies, sans accents, incluant verbes conjugués et termes modernes comme TAG ou FAN).</p>
                 <div class="bg-[#0b0f19] border border-slate-700 rounded-2xl p-3 mt-1">
                     <div class="font-bold text-amber-400 mb-1">Points calculés à la fin des 2 min :</div>
                     <div>• 3 ou 4 lettres : <strong class="text-white">1 point</strong></div>
@@ -195,12 +199,29 @@
                 .replace(/[^A-Z]/g, "");
         }
 
+        /* Validation stricte d'une entrée brute du Wiktionnaire avant normalisation :
+           exclut les locutions avec espaces/tirets/apostrophes, chiffres, ponctuation, préfixes/suffixes */
+        const PURE_FRENCH_WORD_REGEX = /^[a-zA-ZàâäéèêëîïôöùûüÿçœæÀÂÄÉÈÊËÎÏÔÖÙÛÜŸÇŒÆ]{3,16}$/;
+
+        function extractValidWiktionaryWord(rawToken) {
+            const trimmed = String(rawToken || "").trim();
+            if (!PURE_FRENCH_WORD_REGEX.test(trimmed)) return "";
+            const normalized = trimmed
+                .replace(/œ/gi, "oe")
+                .replace(/æ/gi, "ae")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toUpperCase();
+            return (normalized.length >= 3 && normalized.length <= 16) ? normalized : "";
+        }
+
         /* Petit dictionnaire minimal de secours uniquement si le réseau et le cache sont tous deux vides */
         const FALLBACK_WORDS = [
             "LOI", "LOIS", "LARD", "LARDS", "ARE", "ARES", "REEL", "REELS", "REELLE", "REELLES",
             "OIE", "OIES", "DOIE", "DOIS", "DOIT", "DOIVE", "DOIVENT", "ALOI", "ALOIS",
             "LIERA", "LIER", "LIE", "LIES", "LIEE", "LIEES", "BOL", "BOLS", "BEL", "BEAU",
-            "VEAU", "SEAU", "EAU", "EAUX", "ALES", "ALE", "MOT", "MOTS", "JEU", "JEUX"
+            "VEAU", "SEAU", "EAU", "EAUX", "ALES", "ALE", "MOT", "MOTS", "JEU", "JEUX",
+            "TAG", "TAGS", "FAN", "FANS", "DATA", "WEB", "BLOG"
         ];
 
         /* Set en mémoire pour vérification instantanée O(1) */
@@ -208,30 +229,41 @@
         let dictionaryReady = false;
         let dictionaryCount = FALLBACK_WORDS.length;
 
-        /* Configuration IndexedDB pour stocker les ~336 000 mots sans limite localStorage */
+        /* Configuration IndexedDB v2 pour remplacer automatiquement l'ancien cache (319 728 mots) par le Wiktionnaire */
         const DB_NAME = "MotsCachesDB";
-        const DB_VERSION = 1;
+        const DB_VERSION = 2;
         const STORE_NAME = "dictionaryStore";
-        const CACHE_KEY = "fr_wordlist_v1";
+        const CACHE_KEY = "fr_wiktionary_v2";
 
+        /* Sources du Wiktionnaire français : dump officiel Wikimedia gzippé en streaming en priorité, puis miroirs */
         const DICTIONARY_SOURCES = [
             {
-                url: "https://raw.githubusercontent.com/chrplr/openlexicon/master/datasets-info/Liste-de-mots-francais-Gutenberg/liste.de.mots.francais.frgut.txt",
+                name: "Wiktionnaire officiel (Wikimedia)",
+                url: "https://dumps.wikimedia.org/frwiktionary/latest/frwiktionary-latest-all-titles-in-ns0.gz",
+                type: "gz-titles"
+            },
+            {
+                name: "Wiktionnaire FR (GitHub)",
+                url: "https://raw.githubusercontent.com/benoit-cty/wiktionnaire-mots/main/mots.txt",
                 type: "txt"
             },
             {
-                url: "https://cdn.jsdelivr.net/gh/Taknok/French-Wordlist@master/francais.txt",
+                name: "Lexique FR étendu (GitHub)",
+                url: "https://raw.githubusercontent.com/kkrypt0nn/wordlists/main/wordlists/languages/french.txt",
                 type: "txt"
             },
             {
-                url: "https://raw.githubusercontent.com/words/an-array-of-french-words/master/index.json",
-                type: "json"
+                name: "Dictionnaire FR (GitHub)",
+                url: "https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/French.dic",
+                type: "dic"
             }
         ];
 
-        function updateDictStatus(state, text) {
+        function updateDictStatus(state, text, progressPercent = null) {
             const labelEl = document.getElementById("dict-status-label");
             const dotEl = document.getElementById("dict-status-dot");
+            const progressWrap = document.getElementById("dict-progress-wrap");
+            const progressBar = document.getElementById("dict-progress-bar");
             if (!labelEl || !dotEl) return;
 
             labelEl.textContent = text;
@@ -241,6 +273,16 @@
                 dotEl.className = "w-2 h-2 shrink-0 rounded-full bg-emerald-400 inline-block";
             } else {
                 dotEl.className = "w-2 h-2 shrink-0 rounded-full bg-rose-400 inline-block";
+            }
+
+            if (progressWrap && progressBar) {
+                if (typeof progressPercent === "number" && state === "loading") {
+                    progressWrap.classList.remove("hidden");
+                    progressBar.style.width = `${Math.min(100, Math.max(4, progressPercent))}%`;
+                } else {
+                    progressWrap.classList.add("hidden");
+                    progressBar.style.width = "0%";
+                }
             }
         }
 
@@ -253,9 +295,11 @@
                 const request = window.indexedDB.open(DB_NAME, DB_VERSION);
                 request.onupgradeneeded = event => {
                     const db = event.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.createObjectStore(STORE_NAME);
+                    /* Purge propre de l'ancien store v1 si présent pour libérer l'espace */
+                    if (db.objectStoreNames.contains(STORE_NAME)) {
+                        db.deleteObjectStore(STORE_NAME);
                     }
+                    db.createObjectStore(STORE_NAME);
                 };
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => reject(request.error || new Error("Erreur ouverture IndexedDB"));
@@ -296,41 +340,122 @@
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
         }
 
+        /* Téléchargement et décompression en streaming du dump officiel Wiktionnaire .gz */
+        async function streamDecompressWiktionaryGz(response, normalizedSet) {
+            if (!response.body || typeof DecompressionStream === "undefined") {
+                throw new Error("DecompressionStream non disponible");
+            }
+
+            const totalBytes = Number(response.headers.get("content-length")) || 0;
+            let loadedBytes = 0;
+            let lastUiUpdate = 0;
+
+            /* Flux de mesure de progression avant décompression GZIP */
+            const progressStream = new TransformStream({
+                transform(chunk, controller) {
+                    loadedBytes += chunk.byteLength;
+                    const now = performance.now();
+                    if (now - lastUiUpdate > 180) {
+                        lastUiUpdate = now;
+                        const mb = (loadedBytes / (1024 * 1024)).toFixed(1);
+                        const pct = totalBytes > 0
+                            ? Math.round((loadedBytes / totalBytes) * 90)
+                            : Math.min(85, Math.round((loadedBytes / (18 * 1024 * 1024)) * 85));
+                        updateDictStatus(
+                            "loading",
+                            `Wiktionnaire : ${mb} Mo (${formatCountFr(normalizedSet.size)} mots)...`,
+                            pct
+                        );
+                    }
+                    controller.enqueue(chunk);
+                }
+            });
+
+            const decompressedStream = response.body
+                .pipeThrough(progressStream)
+                .pipeThrough(new DecompressionStream("gzip"));
+
+            const reader = decompressedStream.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let leftover = "";
+            let isHeaderLine = true;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                leftover += decoder.decode(value, { stream: true });
+                let newlineIdx;
+                let startIdx = 0;
+
+                while ((newlineIdx = leftover.indexOf("\n", startIdx)) !== -1) {
+                    let line = leftover.slice(startIdx, newlineIdx);
+                    startIdx = newlineIdx + 1;
+
+                    if (line.endsWith("\r")) line = line.slice(0, -1);
+                    if (isHeaderLine) {
+                        isHeaderLine = false;
+                        if (line === "page_title") continue;
+                    }
+
+                    /* Dans all-titles-in-ns0, les espaces sont encodés par '_' : on les rejette via PURE_FRENCH_WORD_REGEX */
+                    const clean = extractValidWiktionaryWord(line);
+                    if (clean) {
+                        normalizedSet.add(clean);
+                    }
+                }
+                leftover = leftover.slice(startIdx);
+            }
+
+            const finalLine = leftover + decoder.decode();
+            if (finalLine) {
+                const clean = extractValidWiktionaryWord(finalLine.trim());
+                if (clean) normalizedSet.add(clean);
+            }
+        }
+
         async function downloadAndBuildDictionary() {
-            updateDictStatus("loading", "Chargement du dictionnaire...");
-            let lastError = null;
+            updateDictStatus("loading", "Connexion au Wiktionnaire...", 5);
 
             for (const source of DICTIONARY_SOURCES) {
                 try {
                     const response = await fetch(source.url, { cache: "no-cache" });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-                    const rawWords = source.type === "json"
-                        ? await response.json()
-                        : (await response.text()).split(/\r?\n/);
-
                     const normalizedSet = new Set(FALLBACK_WORDS);
-                    for (let i = 0; i < rawWords.length; i++) {
-                        const clean = normalizeWord(rawWords[i]);
-                        if (clean.length >= 3 && clean.length <= 16) {
-                            normalizedSet.add(clean);
+
+                    if (source.type === "gz-titles") {
+                        await streamDecompressWiktionaryGz(response, normalizedSet);
+                    } else {
+                        updateDictStatus("loading", `Téléchargement ${source.name}...`, 40);
+                        const text = await response.text();
+                        updateDictStatus("loading", "Indexation des mots...", 75);
+                        const lines = text.split(/\r?\n/);
+                        for (let i = 0; i < lines.length; i++) {
+                            let token = lines[i];
+                            if (source.type === "dic") {
+                                const slashIdx = token.indexOf("/");
+                                if (slashIdx !== -1) token = token.slice(0, slashIdx);
+                            }
+                            const clean = extractValidWiktionaryWord(token);
+                            if (clean) normalizedSet.add(clean);
                         }
                     }
 
-                    if (normalizedSet.size < 10000) {
-                        throw new Error("Liste incomplète");
+                    if (normalizedSet.size < 200000) {
+                        throw new Error("Lexique incomplet");
                     }
 
                     dictionarySet = normalizedSet;
                     dictionaryCount = normalizedSet.size;
                     dictionaryReady = true;
 
-                    /* Sauvegarde dans IndexedDB pour toutes les prochaines parties hors-ligne */
+                    updateDictStatus("loading", `Sauvegarde locale (${formatCountFr(dictionaryCount)} mots)...`, 96);
                     await writeCachedDictionary(Array.from(normalizedSet));
-                    updateDictStatus("ready", `Dictionnaire FR prêt (${formatCountFr(dictionaryCount)} mots)`);
+                    updateDictStatus("ready", `Wiktionnaire FR (${formatCountFr(dictionaryCount)} mots)`);
                     return true;
                 } catch (err) {
-                    lastError = err;
+                    /* Passe automatiquement au miroir suivant en cas d'échec */
                 }
             }
 
@@ -341,13 +466,13 @@
 
         async function initDictionary(forceDownload = false) {
             if (!forceDownload) {
-                updateDictStatus("loading", "Vérification du dictionnaire...");
+                updateDictStatus("loading", "Vérification du Wiktionnaire...");
                 const cachedArray = await readCachedDictionary();
-                if (Array.isArray(cachedArray) && cachedArray.length > 10000) {
+                if (Array.isArray(cachedArray) && cachedArray.length > 200000) {
                     dictionarySet = new Set(cachedArray);
                     dictionaryCount = dictionarySet.size;
                     dictionaryReady = true;
-                    updateDictStatus("ready", `Dictionnaire FR prêt (${formatCountFr(dictionaryCount)} mots)`);
+                    updateDictStatus("ready", `Wiktionnaire FR (${formatCountFr(dictionaryCount)} mots)`);
                     return;
                 }
             }
@@ -628,7 +753,7 @@
             scoreEl.textContent = totalScore;
             unitEl.textContent = totalScore > 1 ? "points" : "point";
             subEl.textContent = dictionaryReady
-                ? `Dictionnaire FR local (${formatCountFr(dictionaryCount)} mots)`
+                ? `Wiktionnaire FR local (${formatCountFr(dictionaryCount)} mots)`
                 : "Dictionnaire de secours (hors-ligne)";
         }
 
