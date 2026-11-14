@@ -1,839 +1,716 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MOTS CACHÉS</title>
-    <!-- Tailwind CSS et Google Fonts Inter -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0b0f19;
-            color: #f8fafc;
-            user-select: none;
-            -webkit-user-select: none;
-            overscroll-behavior: none;
-        }
-        .card-dark {
-            background-color: #161e2e;
-            border: 1px solid #263147;
-        }
-        .dice-tile {
-            background: linear-gradient(145deg, #fffbeb, #fde68a);
-            box-shadow: 0 5px 0 #d97706, 0 8px 14px rgba(0, 0, 0, 0.45), inset 0 2px 2px #ffffff;
-            transition: transform 0.08s ease, background 0.1s ease, box-shadow 0.1s ease;
-        }
-        .dice-tile.selected {
-            background: linear-gradient(145deg, #fbbf24, #f59e0b);
-            transform: scale(0.93) translateY(2px);
-            box-shadow: 0 2px 0 #b45309, 0 0 18px rgba(245, 158, 11, 0.85);
-        }
-        .dice-tile.last {
-            background: linear-gradient(145deg, #34d399, #10b981);
-            box-shadow: 0 2px 0 #047857, 0 0 20px rgba(16, 185, 129, 0.9);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MOTS CACHÉS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background-color: #0b0f19;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+    #board {
+      touch-action: none;
+    }
+    .die-cell {
+      transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .die-selected {
+      background: linear-gradient(135deg, #f59e0b, #ea580c) !important;
+      border-color: #fde68a !important;
+      color: #ffffff !important;
+      transform: scale(0.93);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.55);
+    }
+    .die-last {
+      transform: scale(0.97);
+      box-shadow: 0 0 24px rgba(251, 191, 36, 0.85);
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.25s ease-in-out;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.9); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.22s ease-out forwards;
+    }
+  </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-4">
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-5">
 
-    <!-- Conteneur principal mobile-first -->
-    <div class="w-full max-w-md flex flex-col justify-between min-h-[95vh] gap-3">
+  <div class="w-full max-w-md flex flex-col gap-3 my-auto">
 
-        <!-- 1. En-tête -->
-        <header class="card-dark rounded-2xl p-3 flex items-center justify-between shadow-lg">
-            <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-xl flex items-center justify-center shadow">
-                    M
-                </div>
-                <div class="min-w-0">
-                    <h1 class="text-base sm:text-lg font-extrabold tracking-wide text-amber-400 leading-none">MOTS CACHÉS</h1>
-                    <p id="dict-status-text" class="text-[11px] sm:text-xs text-slate-400 mt-1 flex items-center gap-1.5 truncate">
-                        <span id="dict-status-dot" class="w-2 h-2 shrink-0 rounded-full bg-amber-400 animate-pulse inline-block"></span>
-                        <span id="dict-status-label" class="truncate">Vérification du Wiktionnaire...</span>
-                    </p>
-                    <!-- Barre de progression discrète pendant le téléchargement du Wiktionnaire -->
-                    <div id="dict-progress-wrap" class="hidden w-full h-1 bg-slate-800 rounded-full overflow-hidden mt-1.5">
-                        <div id="dict-progress-bar" class="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-150" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex items-center gap-2 shrink-0">
-                <div id="timer-box" class="bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-1.5 flex items-center gap-1.5 font-mono font-extrabold text-lg text-white">
-                    <span class="text-amber-400 text-sm">⏱</span>
-                    <span id="timer-display">02:00</span>
-                </div>
-                <button type="button" id="btn-refresh-dict" title="Re-télécharger le Wiktionnaire complet" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-base active:scale-95 transition" aria-label="Mettre à jour le dictionnaire">
-                    🔄
-                </button>
-            </div>
-        </header>
-
-        <!-- 2. Zone d'affichage du mot en cours de sélection -->
-        <div class="flex justify-center">
-            <div id="current-word-pill" class="card-dark rounded-full px-6 py-2 min-w-[230px] text-center text-xl font-extrabold tracking-widest text-amber-400 shadow">
-                <span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>
-            </div>
+    <!-- En-tête -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex items-start justify-between gap-2 shadow-lg">
+      <div class="flex items-start gap-3 min-w-0 flex-1">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-md shrink-0 mt-0.5">
+          M
         </div>
-
-        <!-- 3. Grille 4x4 et écran d'accueil superposé -->
-        <div class="relative w-full max-w-[355px] aspect-square mx-auto bg-gradient-to-br from-amber-950/90 to-slate-900 border-2 border-amber-500/40 rounded-3xl p-3.5 shadow-2xl touch-none">
-            <!-- Tracé SVG reliant les dés glissés -->
-            <svg id="line-svg" class="absolute inset-0 w-full h-full pointer-events-none z-10"></svg>
-            <!-- Grille des 16 dés -->
-            <div id="grid-container" class="relative z-20 w-full h-full grid grid-cols-4 grid-rows-4 gap-2.5 touch-none"></div>
-
-            <!-- Écran d'accueil superposé -->
-            <div id="start-overlay" class="absolute inset-0 z-30 bg-[#0b0f19]/95 rounded-[22px] p-6 flex flex-col items-center justify-center text-center">
-                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-xl flex items-center justify-center mb-3 shadow-lg">
-                    4x4
-                </div>
-                <h2 id="overlay-heading" class="text-2xl font-extrabold text-white mb-2">Prêt à jouer ?</h2>
-                <p id="overlay-subtext" class="text-sm text-slate-300 leading-relaxed mb-5">
-                    Reliez les lettres adjacentes (y compris en diagonale) pendant <strong class="text-white">2 minutes</strong>. Vos points seront calculés à la fin !
-                </p>
-                <button type="button" id="btn-start" onclick="startGame()" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-base tracking-wide shadow-lg shadow-amber-500/20 active:scale-95 transition cursor-pointer">
-                    LANCER LA PARTIE
-                </button>
-            </div>
+        <div class="min-w-0 flex-1">
+          <h1 class="font-black text-lg tracking-wide text-amber-400 leading-tight">MOTS CACHÉS</h1>
+          <div class="flex items-start gap-1.5 mt-1">
+            <span id="dict-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0 mt-1"></span>
+            <span id="dict-status" class="text-xs text-slate-300 leading-snug break-words">Initialisation du dictionnaire...</span>
+          </div>
+          <div id="dict-progress-wrap" class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden hidden">
+            <div id="dict-progress-bar" class="bg-gradient-to-r from-amber-400 to-orange-500 h-full transition-all duration-150" style="width: 0%"></div>
+          </div>
         </div>
+      </div>
 
-        <!-- 4. Liste des mots enregistrés (sans points avant la fin) -->
-        <section class="card-dark rounded-2xl p-3 flex flex-col max-h-40 shadow-lg">
-            <div class="flex justify-between items-center pb-2 mb-2 border-b border-slate-700/70 text-xs font-bold uppercase tracking-wider text-slate-300">
-                <span>MOTS ENREGISTRÉS (<span id="words-count" class="text-amber-400">0</span>)</span>
-                <div class="flex items-center gap-2">
-                    <span id="points-hint" class="text-[11px] font-normal normal-case text-slate-400">Points révélés à la fin</span>
-                    <button type="button" id="btn-stop-early" class="hidden text-amber-400 underline font-semibold normal-case text-xs">Terminer</button>
-                </div>
-            </div>
-            <div id="words-list" class="flex flex-wrap gap-1.5 overflow-y-auto min-h-[38px]">
-                <span class="text-xs italic text-slate-400">Aucun mot formé pour l'instant...</span>
-            </div>
-        </section>
+      <div class="flex items-center gap-2 shrink-0">
+        <div id="timer-box" class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-amber-400">
+          <span class="text-xs opacity-75">⏱</span>
+          <span id="timer-display">02:00</span>
+        </div>
+        <button id="refresh-dict-btn" onclick="forceReloadDictionary()" title="Re-télécharger les dictionnaires" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 active:scale-95 transition">
+          🔄
+        </button>
+      </div>
+    </header>
 
-        <!-- Barre d'actions discrète -->
-        <footer class="flex gap-2">
-            <button type="button" id="btn-shuffle" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-slate-200 active:scale-95 transition">
-                ↻ Nouvelle grille
-            </button>
-            <button type="button" id="btn-rules" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-slate-200 active:scale-95 transition">
-                Barème & Règles
-            </button>
-            <button type="button" id="btn-export" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-amber-400 active:scale-95 transition">
-                ⬇ Export HTML
-            </button>
-        </footer>
+    <!-- Mot en cours de formation -->
+    <div id="current-word-bar" class="bg-slate-900/90 border border-slate-800 rounded-2xl py-2.5 px-4 min-h-[48px] flex items-center justify-center shadow-inner">
+      <span id="current-word-text" class="text-slate-500 text-sm font-semibold tracking-wider">Glissez sur les lettres...</span>
     </div>
 
-    <!-- 5. Modale Résultats de fin de partie -->
-    <div id="modal-results" class="fixed inset-0 z-50 bg-[#0b0f19]/90 hidden items-center justify-center p-4">
-        <div class="card-dark rounded-3xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
-            <div class="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 p-5 text-center">
-                <div class="text-sm font-black tracking-widest uppercase">TEMPS ÉCOULÉ !</div>
-                <div class="flex items-baseline justify-center gap-1.5 my-1">
-                    <span id="final-score" class="text-5xl font-black">0</span>
-                    <span id="final-score-unit" class="text-lg font-extrabold">points</span>
-                </div>
-                <div id="score-subtitle" class="text-xs font-bold opacity-90">Vérification terminée</div>
-            </div>
-            <div class="px-4 pt-3 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                Détail de vos mots
-            </div>
-            <div id="results-list" class="px-4 pb-4 overflow-y-auto flex flex-col gap-2"></div>
-            <div class="p-3 border-t border-slate-800 bg-[#0b0f19] flex gap-2">
-                <button type="button" id="btn-view-board" class="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold text-slate-200 active:scale-95 transition">
-                    Voir la grille
-                </button>
-                <button type="button" id="btn-play-again" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-sm font-black text-slate-950 active:scale-95 transition">
-                    Rejouer
-                </button>
-            </div>
+    <!-- Zone principale : Grille 4x4 + Écrans superposés -->
+    <div class="relative w-full aspect-square bg-slate-900/95 border-2 border-amber-500/40 rounded-3xl p-3 shadow-2xl">
+
+      <!-- Grille des 16 dés -->
+      <div id="board" class="relative w-full h-full grid grid-cols-4 grid-rows-4 gap-2.5">
+        <svg id="line-svg" class="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline id="drag-polyline" fill="none" stroke="rgba(251, 191, 36, 0.75)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="" />
+        </svg>
+      </div>
+
+      <!-- Écran d'accueil -->
+      <div id="overlay-start" class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center p-6 text-center z-20">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-2xl shadow-lg mb-4">
+          4×4
         </div>
+        <h2 class="text-2xl font-extrabold text-white mb-2">Prêt à jouer ?</h2>
+        <p class="text-slate-300 text-sm leading-relaxed mb-6 max-w-xs">
+          Reliez les lettres adjacentes (y compris en diagonale) pendant <strong class="text-amber-400">2 minutes</strong>. Vos points seront calculés à la fin !
+        </p>
+        <button id="start-btn" onclick="startGame()" class="w-full max-w-xs py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-base tracking-wide shadow-lg shadow-orange-500/25 active:scale-95 transition">
+          LANCER LA PARTIE
+        </button>
+      </div>
+
+      <!-- Écran de fin / Résultats -->
+      <div id="overlay-end" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col overflow-hidden z-30 animate-pop">
+        <div class="bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-center text-slate-950 shrink-0">
+          <div class="text-xs font-black uppercase tracking-widest opacity-85">TEMPS ÉCOULÉ !</div>
+          <div class="mt-0.5 flex items-baseline justify-center gap-1.5">
+            <span id="final-score" class="text-4xl font-black">0</span>
+            <span id="final-score-label" class="text-lg font-extrabold">points</span>
+          </div>
+          <div id="final-dict-info" class="text-xs font-semibold opacity-90 mt-0.5">Vérifié avec le méga-dictionnaire FR</div>
+        </div>
+
+        <div class="p-3.5 flex-1 flex flex-col min-h-0">
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Détail de vos mots</div>
+          <div id="results-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1"></div>
+
+          <div class="grid grid-cols-2 gap-2.5 pt-3 mt-2 border-t border-slate-800 shrink-0">
+            <button onclick="viewBoardAfterEnd()" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm active:scale-95 transition">
+              Voir la grille
+            </button>
+            <button onclick="startGame()" class="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+              Rejouer
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Modale Barème & Règles -->
-    <div id="modal-rules" class="fixed inset-0 z-50 bg-[#0b0f19]/90 hidden items-center justify-center p-4">
-        <div class="card-dark rounded-3xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
-            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-lg font-extrabold text-amber-400">Barème & Règles</h3>
-                <button type="button" id="btn-close-rules" class="w-8 h-8 rounded-full bg-slate-800 text-slate-400">✕</button>
-            </div>
-            <div class="p-4 flex flex-col gap-2.5 text-sm text-slate-300">
-                <p>• <strong class="text-white">16 dés français (96 faces)</strong> : fréquences françaises avec <strong class="text-amber-400">1 seul Z</strong> et <strong class="text-amber-400">1 seul W</strong> dans tout le jeu.</p>
-                <p>• <strong class="text-white">Wiktionnaire français complet hors-ligne</strong> : téléchargé et décompressé automatiquement lors de votre première visite, puis mis en cache sur votre appareil (plus d'un million de formes fléchies, sans accents, incluant verbes conjugués et termes modernes comme TAG ou FAN).</p>
-                <div class="bg-[#0b0f19] border border-slate-700 rounded-2xl p-3 mt-1">
-                    <div class="font-bold text-amber-400 mb-1">Points calculés à la fin des 2 min :</div>
-                    <div>• 3 ou 4 lettres : <strong class="text-white">1 point</strong></div>
-                    <div>• 5 lettres : <strong class="text-white">3 points</strong> (+2)</div>
-                    <div>• 6 lettres : <strong class="text-white">5 points</strong> (+2)</div>
-                    <div>• +2 points par lettre supplémentaire</div>
-                </div>
-            </div>
-            <div class="p-3 border-t border-slate-800 bg-[#0b0f19]">
-                <button type="button" id="btn-ok-rules" class="w-full py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-sm">Compris</button>
-            </div>
-        </div>
+    <!-- Barre d'action quand on consulte la grille après la fin -->
+    <div id="post-game-bar" class="hidden flex gap-2.5">
+      <button onclick="reopenResults()" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 border border-slate-700 text-amber-400 font-bold text-sm active:scale-95 transition">
+        ← Voir les résultats
+      </button>
+      <button onclick="startGame()" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+        Nouvelle partie
+      </button>
     </div>
 
-    <script>
-        /* 16 dés virtuels français (96 faces : exactement 1 Z sur le dé 14 et 1 W sur le dé 15) */
-        const FRENCH_DICE = [
-            "EAINES", "ETIRAS", "EULNOS", "EAIRTL",
-            "EONMDU", "EACPRT", "EISDVL", "AOUIRN",
-            "ETGNCB", "AIOMPF", "EULRCH", "ASDVBM",
-            "EIQXJK", "OUPYHZ", "AIRENW", "ETOLUS"
-        ];
+    <!-- Liste des mots trouvés pendant la partie (sans points affichés) -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-lg">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
+          Mots enregistrés (<span id="found-count">0</span>)
+        </span>
+        <span class="text-xs text-amber-400/90 font-medium">Points révélés à la fin</span>
+      </div>
+      <div id="found-words-container" class="min-h-[44px] max-h-28 overflow-y-auto flex flex-wrap gap-1.5 items-center">
+        <span class="text-slate-500 text-xs italic">Aucun mot formé pour l'instant...</span>
+      </div>
+    </section>
 
-        /* Normalisation en majuscules sans accents, lettres A-Z uniquement */
-        function normalizeWord(word) {
-            return String(word || "")
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toUpperCase()
-                .replace(/[^A-Z]/g, "");
+    <!-- Pied de page barème -->
+    <footer class="text-center text-[11px] text-slate-500 pb-1">
+      Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire
+    </footer>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. LES 16 DÉS FRANÇAIS (96 FACES CALIBRÉES : 1 SEUL Z, 1 SEUL W)
+    // =========================================================================
+    const FRENCH_DICE = [
+      ['E', 'A', 'I', 'N', 'O', 'R'],
+      ['E', 'A', 'I', 'S', 'T', 'U'],
+      ['E', 'A', 'N', 'O', 'R', 'S'],
+      ['E', 'I', 'N', 'O', 'T', 'U'],
+      ['E', 'A', 'I', 'R', 'S', 'L'],
+      ['E', 'A', 'N', 'O', 'T', 'L'],
+      ['E', 'I', 'R', 'S', 'U', 'D'],
+      ['E', 'A', 'O', 'T', 'U', 'M'],
+      ['E', 'I', 'N', 'S', 'L', 'C'],
+      ['E', 'A', 'R', 'T', 'L', 'G'],
+      ['E', 'O', 'U', 'D', 'M', 'P'],
+      ['E', 'N', 'S', 'L', 'C', 'B'],
+      ['E', 'I', 'R', 'D', 'G', 'F'],
+      ['E', 'A', 'O', 'M', 'P', 'H'],
+      ['E', 'U', 'J', 'K', 'Q', 'Z'],
+      ['A', 'I', 'V', 'W', 'X', 'Y']
+    ];
+
+    // =========================================================================
+    // 2. MÉGA-DICTIONNAIRE FRANÇAIS MULTI-SOURCES + CACHE INDEXEDDB PERSISTANT
+    // =========================================================================
+    const DB_NAME = 'MotsCachesDB';
+    const DB_VERSION = 4;
+    const STORE_NAME = 'dictionaries';
+    const DICT_KEY = 'fr_mega_dict_v4';
+
+    // Sources accessibles directement depuis le navigateur (CORS autorisé)
+    const DICT_SOURCES = [
+      {
+        name: 'Wiktionnaire FR (toutes formes)',
+        urls: [
+          'https://cdn.jsdelivr.net/gh/hbenbel/French-Dictionary@master/dictionary/dictionary.txt',
+          'https://raw.githubusercontent.com/hbenbel/French-Dictionary/master/dictionary/dictionary.txt'
+        ]
+      },
+      {
+        name: 'Lexique Français Étendu (conjugaisons & variantes)',
+        urls: [
+          'https://cdn.jsdelivr.net/gh/lorenbrichter/Words@master/Words/fr.txt',
+          'https://raw.githubusercontent.com/lorenbrichter/Words/master/Words/fr.txt'
+        ]
+      },
+      {
+        name: 'Dictionnaire Hunspell / LibreOffice FR',
+        urls: [
+          'https://cdn.jsdelivr.net/gh/titoBouzout/Dictionaries@master/French.dic',
+          'https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/French.dic'
+        ]
+      },
+      {
+        name: 'Base ODS / Scrabble & Gutenberg FR',
+        urls: [
+          'https://cdn.jsdelivr.net/gh/chrplr/openlexicon@master/datasets-info/Liste-de-mots-francais-Gutenberg/liste.de.mots.francais.frgut.txt',
+          'https://raw.githubusercontent.com/takabu/french-words/master/words.txt'
+        ]
+      }
+    ];
+
+    let dictionarySet = new Set();
+    let dictionaryReady = false;
+    let activeSourceCount = 0;
+
+    function normalizeWord(str) {
+      return str
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+    }
+
+    function setDictStatus(text, state = 'loading', progress = null) {
+      const statusEl = document.getElementById('dict-status');
+      const dotEl = document.getElementById('dict-dot');
+      const progWrap = document.getElementById('dict-progress-wrap');
+      const progBar = document.getElementById('dict-progress-bar');
+
+      statusEl.textContent = text;
+      dotEl.className = 'w-2 h-2 rounded-full shrink-0 mt-1 ' + (
+        state === 'ready' ? 'bg-emerald-400' :
+        state === 'error' ? 'bg-rose-400' :
+        'bg-amber-400 animate-pulse'
+      );
+
+      if (progress !== null) {
+        progWrap.classList.remove('hidden');
+        progBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+      } else {
+        progWrap.classList.add('hidden');
+      }
+    }
+
+    function openDictionaryDB() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB non disponible'));
+          return;
         }
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          for (const name of Array.from(db.objectStoreNames)) {
+            db.deleteObjectStore(name);
+          }
+          db.createObjectStore(STORE_NAME);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
 
-        /* Validation stricte d'une entrée brute du Wiktionnaire avant normalisation :
-           exclut les locutions avec espaces/tirets/apostrophes, chiffres, ponctuation, préfixes/suffixes */
-        const PURE_FRENCH_WORD_REGEX = /^[a-zA-ZàâäéèêëîïôöùûüÿçœæÀÂÄÉÈÊËÎÏÔÖÙÛÜŸÇŒÆ]{3,16}$/;
+    async function loadFromIndexedDB() {
+      try {
+        const db = await openDictionaryDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(STORE_NAME, 'readonly');
+          const store = tx.objectStore(STORE_NAME);
+          const getReq = store.get(DICT_KEY);
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        });
+      } catch (e) {
+        return null;
+      }
+    }
 
-        function extractValidWiktionaryWord(rawToken) {
-            const trimmed = String(rawToken || "").trim();
-            if (!PURE_FRENCH_WORD_REGEX.test(trimmed)) return "";
-            const normalized = trimmed
-                .replace(/œ/gi, "oe")
-                .replace(/æ/gi, "ae")
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toUpperCase();
-            return (normalized.length >= 3 && normalized.length <= 16) ? normalized : "";
+    async function saveToIndexedDB(payload) {
+      try {
+        const db = await openDictionaryDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          const putReq = store.put(payload, DICT_KEY);
+          putReq.onsuccess = () => resolve();
+          putReq.onerror = () => reject(putReq.error);
+        });
+      } catch (e) {
+        console.warn('Sauvegarde IndexedDB ignorée:', e);
+      }
+    }
+
+    function parseAndMergeWords(rawText, targetSet) {
+      const lines = rawText.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+        const slashIdx = line.indexOf('/');
+        if (slashIdx > 0) line = line.slice(0, slashIdx);
+        const spaceIdx = line.indexOf('\t');
+        if (spaceIdx > 0) line = line.slice(0, spaceIdx);
+
+        const clean = normalizeWord(line);
+        if (clean.length >= 3 && clean.length <= 16 && /^[A-Z]+$/.test(clean)) {
+          targetSet.add(clean);
         }
+      }
+    }
 
-        /* Petit dictionnaire minimal de secours uniquement si le réseau et le cache sont tous deux vides */
-        const FALLBACK_WORDS = [
-            "LOI", "LOIS", "LARD", "LARDS", "ARE", "ARES", "REEL", "REELS", "REELLE", "REELLES",
-            "OIE", "OIES", "DOIE", "DOIS", "DOIT", "DOIVE", "DOIVENT", "ALOI", "ALOIS",
-            "LIERA", "LIER", "LIE", "LIES", "LIEE", "LIEES", "BOL", "BOLS", "BEL", "BEAU",
-            "VEAU", "SEAU", "EAU", "EAUX", "ALES", "ALE", "MOT", "MOTS", "JEU", "JEUX",
-            "TAG", "TAGS", "FAN", "FANS", "DATA", "WEB", "BLOG"
-        ];
-
-        /* Set en mémoire pour vérification instantanée O(1) */
-        let dictionarySet = new Set(FALLBACK_WORDS);
-        let dictionaryReady = false;
-        let dictionaryCount = FALLBACK_WORDS.length;
-
-        /* Configuration IndexedDB v2 pour remplacer automatiquement l'ancien cache (319 728 mots) par le Wiktionnaire */
-        const DB_NAME = "MotsCachesDB";
-        const DB_VERSION = 2;
-        const STORE_NAME = "dictionaryStore";
-        const CACHE_KEY = "fr_wiktionary_v2";
-
-        /* Sources du Wiktionnaire français : dump officiel Wikimedia gzippé en streaming en priorité, puis miroirs */
-        const DICTIONARY_SOURCES = [
-            {
-                name: "Wiktionnaire officiel (Wikimedia)",
-                url: "https://dumps.wikimedia.org/frwiktionary/latest/frwiktionary-latest-all-titles-in-ns0.gz",
-                type: "gz-titles"
-            },
-            {
-                name: "Wiktionnaire FR (GitHub)",
-                url: "https://raw.githubusercontent.com/benoit-cty/wiktionnaire-mots/main/mots.txt",
-                type: "txt"
-            },
-            {
-                name: "Lexique FR étendu (GitHub)",
-                url: "https://raw.githubusercontent.com/kkrypt0nn/wordlists/main/wordlists/languages/french.txt",
-                type: "txt"
-            },
-            {
-                name: "Dictionnaire FR (GitHub)",
-                url: "https://raw.githubusercontent.com/titoBouzout/Dictionaries/master/French.dic",
-                type: "dic"
-            }
-        ];
-
-        function updateDictStatus(state, text, progressPercent = null) {
-            const labelEl = document.getElementById("dict-status-label");
-            const dotEl = document.getElementById("dict-status-dot");
-            const progressWrap = document.getElementById("dict-progress-wrap");
-            const progressBar = document.getElementById("dict-progress-bar");
-            if (!labelEl || !dotEl) return;
-
-            labelEl.textContent = text;
-            if (state === "loading") {
-                dotEl.className = "w-2 h-2 shrink-0 rounded-full bg-amber-400 animate-pulse inline-block";
-            } else if (state === "ready") {
-                dotEl.className = "w-2 h-2 shrink-0 rounded-full bg-emerald-400 inline-block";
-            } else {
-                dotEl.className = "w-2 h-2 shrink-0 rounded-full bg-rose-400 inline-block";
-            }
-
-            if (progressWrap && progressBar) {
-                if (typeof progressPercent === "number" && state === "loading") {
-                    progressWrap.classList.remove("hidden");
-                    progressBar.style.width = `${Math.min(100, Math.max(4, progressPercent))}%`;
-                } else {
-                    progressWrap.classList.add("hidden");
-                    progressBar.style.width = "0%";
-                }
-            }
+    async function fetchFirstAvailableUrl(urls) {
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) {
+            return await res.text();
+          }
+        } catch (err) {
+          console.warn('Échec miroir:', url, err);
         }
+      }
+      return null;
+    }
 
-        function openDictionaryDB() {
-            return new Promise((resolve, reject) => {
-                if (!("indexedDB" in window)) {
-                    reject(new Error("IndexedDB non supporté"));
-                    return;
-                }
-                const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-                request.onupgradeneeded = event => {
-                    const db = event.target.result;
-                    /* Purge propre de l'ancien store v1 si présent pour libérer l'espace */
-                    if (db.objectStoreNames.contains(STORE_NAME)) {
-                        db.deleteObjectStore(STORE_NAME);
-                    }
-                    db.createObjectStore(STORE_NAME);
-                };
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error || new Error("Erreur ouverture IndexedDB"));
-            });
+    async function downloadAndBuildMegaDictionary() {
+      const mergedSet = new Set();
+      let loadedSources = 0;
+
+      for (let i = 0; i < DICT_SOURCES.length; i++) {
+        const src = DICT_SOURCES[i];
+        const pct = Math.round(((i) / DICT_SOURCES.length) * 90) + 5;
+        setDictStatus(`Téléchargement (${i + 1}/${DICT_SOURCES.length}) : ${src.name}...`, 'loading', pct);
+
+        const text = await fetchFirstAvailableUrl(src.urls);
+        if (text) {
+          parseAndMergeWords(text, mergedSet);
+          loadedSources++;
         }
+      }
 
-        async function readCachedDictionary() {
-            try {
-                const db = await openDictionaryDB();
-                return await new Promise((resolve, reject) => {
-                    const tx = db.transaction(STORE_NAME, "readonly");
-                    const store = tx.objectStore(STORE_NAME);
-                    const req = store.get(CACHE_KEY);
-                    req.onsuccess = () => resolve(req.result || null);
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (e) {
-                return null;
-            }
+      if (loadedSources === 0 || mergedSet.size === 0) {
+        throw new Error('Impossible de télécharger les dictionnaires externes');
+      }
+
+      setDictStatus(`Enregistrement local (${mergedSet.size.toLocaleString('fr-FR')} mots)...`, 'loading', 96);
+
+      const packedString = Array.from(mergedSet).join('\n');
+      await saveToIndexedDB({
+        wordsText: packedString,
+        count: mergedSet.size,
+        sourcesCount: loadedSources,
+        updatedAt: Date.now()
+      });
+
+      dictionarySet = mergedSet;
+      activeSourceCount = loadedSources;
+      dictionaryReady = true;
+
+      setDictStatus(
+        `Méga-Dictionnaire FR prêt (${dictionarySet.size.toLocaleString('fr-FR')} mots • ${activeSourceCount} bases fusionnées)`,
+        'ready',
+        null
+      );
+    }
+
+    async function initDictionary(forceDownload = false) {
+      try {
+        if (!forceDownload) {
+          setDictStatus('Vérification du méga-dictionnaire local...', 'loading', 15);
+          const cached = await loadFromIndexedDB();
+          if (cached && cached.wordsText && cached.count > 0) {
+            const arr = cached.wordsText.split('\n');
+            dictionarySet = new Set(arr);
+            activeSourceCount = cached.sourcesCount || DICT_SOURCES.length;
+            dictionaryReady = true;
+            setDictStatus(
+              `Méga-Dictionnaire FR prêt (${dictionarySet.size.toLocaleString('fr-FR')} mots • ${activeSourceCount} bases en cache)`,
+              'ready',
+              null
+            );
+            return;
+          }
         }
+        await downloadAndBuildMegaDictionary();
+      } catch (err) {
+        console.error(err);
+        dictionarySet = new Set();
+        dictionaryReady = false;
+        setDictStatus(
+          `Aucun dictionnaire chargé (0 mot) — Vérifiez le réseau et appuyez sur 🔄`,
+          'error',
+          null
+        );
+      }
+    }
 
-        async function writeCachedDictionary(wordsArray) {
-            try {
-                const db = await openDictionaryDB();
-                await new Promise((resolve, reject) => {
-                    const tx = db.transaction(STORE_NAME, "readwrite");
-                    const store = tx.objectStore(STORE_NAME);
-                    const req = store.put(wordsArray, CACHE_KEY);
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (e) {
-                /* Si le stockage échoue (navigation privée stricte), le dictionnaire reste actif en mémoire */
-            }
+    function forceReloadDictionary() {
+      if (isPlaying) return;
+      initDictionary(true);
+    }
+
+    // =========================================================================
+    // 3. LOGIQUE DU JEU BOGGLE 4x4, GLISSEMENT TACTILE ET CALCUL DIFFÉRÉ
+    // =========================================================================
+    let boardLetters = [];
+    let isPlaying = false;
+    let timeLeft = 120;
+    let timerInterval = null;
+
+    let selectedIndices = [];
+    let isDragging = false;
+    let foundWords = [];
+
+    const boardEl = document.getElementById('board');
+    const polylineEl = document.getElementById('drag-polyline');
+    const currentWordText = document.getElementById('current-word-text');
+    const currentWordBar = document.getElementById('current-word-bar');
+    const foundWordsContainer = document.getElementById('found-words-container');
+    const foundCountEl = document.getElementById('found-count');
+    const timerDisplay = document.getElementById('timer-display');
+    const timerBox = document.getElementById('timer-box');
+
+    function rollDice() {
+      const diceCopy = [...FRENCH_DICE];
+      for (let i = diceCopy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [diceCopy[i], diceCopy[j]] = [diceCopy[j], diceCopy[i]];
+      }
+      return diceCopy.map(die => die[Math.floor(Math.random() * 6)]);
+    }
+
+    function renderBoard() {
+      const cells = boardEl.querySelectorAll('.die-cell');
+      cells.forEach(c => c.remove());
+
+      for (let i = 0; i < 16; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'die-cell relative z-0 bg-slate-800/95 border-2 border-slate-700/80 rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-black text-slate-100 shadow-md cursor-pointer';
+        cell.dataset.index = i;
+        cell.textContent = boardLetters[i] || '';
+        boardEl.appendChild(cell);
+      }
+    }
+
+    function isAdjacent(idxA, idxB) {
+      const rA = Math.floor(idxA / 4), cA = idxA % 4;
+      const rB = Math.floor(idxB / 4), cB = idxB % 4;
+      return Math.abs(rA - rB) <= 1 && Math.abs(cA - cB) <= 1 && idxA !== idxB;
+    }
+
+    function updateSelectionVisuals() {
+      const cells = boardEl.querySelectorAll('.die-cell');
+      cells.forEach((cell, idx) => {
+        cell.classList.remove('die-selected', 'die-last');
+        const pos = selectedIndices.indexOf(idx);
+        if (pos !== -1) {
+          cell.classList.add('die-selected');
+          if (pos === selectedIndices.length - 1) {
+            cell.classList.add('die-last');
+          }
         }
-
-        function formatCountFr(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-        }
-
-        /* Téléchargement et décompression en streaming du dump officiel Wiktionnaire .gz */
-        async function streamDecompressWiktionaryGz(response, normalizedSet) {
-            if (!response.body || typeof DecompressionStream === "undefined") {
-                throw new Error("DecompressionStream non disponible");
-            }
-
-            const totalBytes = Number(response.headers.get("content-length")) || 0;
-            let loadedBytes = 0;
-            let lastUiUpdate = 0;
-
-            /* Flux de mesure de progression avant décompression GZIP */
-            const progressStream = new TransformStream({
-                transform(chunk, controller) {
-                    loadedBytes += chunk.byteLength;
-                    const now = performance.now();
-                    if (now - lastUiUpdate > 180) {
-                        lastUiUpdate = now;
-                        const mb = (loadedBytes / (1024 * 1024)).toFixed(1);
-                        const pct = totalBytes > 0
-                            ? Math.round((loadedBytes / totalBytes) * 90)
-                            : Math.min(85, Math.round((loadedBytes / (18 * 1024 * 1024)) * 85));
-                        updateDictStatus(
-                            "loading",
-                            `Wiktionnaire : ${mb} Mo (${formatCountFr(normalizedSet.size)} mots)...`,
-                            pct
-                        );
-                    }
-                    controller.enqueue(chunk);
-                }
-            });
-
-            const decompressedStream = response.body
-                .pipeThrough(progressStream)
-                .pipeThrough(new DecompressionStream("gzip"));
-
-            const reader = decompressedStream.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let leftover = "";
-            let isHeaderLine = true;
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                leftover += decoder.decode(value, { stream: true });
-                let newlineIdx;
-                let startIdx = 0;
-
-                while ((newlineIdx = leftover.indexOf("\n", startIdx)) !== -1) {
-                    let line = leftover.slice(startIdx, newlineIdx);
-                    startIdx = newlineIdx + 1;
-
-                    if (line.endsWith("\r")) line = line.slice(0, -1);
-                    if (isHeaderLine) {
-                        isHeaderLine = false;
-                        if (line === "page_title") continue;
-                    }
-
-                    /* Dans all-titles-in-ns0, les espaces sont encodés par '_' : on les rejette via PURE_FRENCH_WORD_REGEX */
-                    const clean = extractValidWiktionaryWord(line);
-                    if (clean) {
-                        normalizedSet.add(clean);
-                    }
-                }
-                leftover = leftover.slice(startIdx);
-            }
-
-            const finalLine = leftover + decoder.decode();
-            if (finalLine) {
-                const clean = extractValidWiktionaryWord(finalLine.trim());
-                if (clean) normalizedSet.add(clean);
-            }
-        }
-
-        async function downloadAndBuildDictionary() {
-            updateDictStatus("loading", "Connexion au Wiktionnaire...", 5);
-
-            for (const source of DICTIONARY_SOURCES) {
-                try {
-                    const response = await fetch(source.url, { cache: "no-cache" });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                    const normalizedSet = new Set(FALLBACK_WORDS);
-
-                    if (source.type === "gz-titles") {
-                        await streamDecompressWiktionaryGz(response, normalizedSet);
-                    } else {
-                        updateDictStatus("loading", `Téléchargement ${source.name}...`, 40);
-                        const text = await response.text();
-                        updateDictStatus("loading", "Indexation des mots...", 75);
-                        const lines = text.split(/\r?\n/);
-                        for (let i = 0; i < lines.length; i++) {
-                            let token = lines[i];
-                            if (source.type === "dic") {
-                                const slashIdx = token.indexOf("/");
-                                if (slashIdx !== -1) token = token.slice(0, slashIdx);
-                            }
-                            const clean = extractValidWiktionaryWord(token);
-                            if (clean) normalizedSet.add(clean);
-                        }
-                    }
-
-                    if (normalizedSet.size < 200000) {
-                        throw new Error("Lexique incomplet");
-                    }
-
-                    dictionarySet = normalizedSet;
-                    dictionaryCount = normalizedSet.size;
-                    dictionaryReady = true;
-
-                    updateDictStatus("loading", `Sauvegarde locale (${formatCountFr(dictionaryCount)} mots)...`, 96);
-                    await writeCachedDictionary(Array.from(normalizedSet));
-                    updateDictStatus("ready", `Wiktionnaire FR (${formatCountFr(dictionaryCount)} mots)`);
-                    return true;
-                } catch (err) {
-                    /* Passe automatiquement au miroir suivant en cas d'échec */
-                }
-            }
-
-            dictionaryReady = false;
-            updateDictStatus("error", "Hors-ligne (dictionnaire de secours)");
-            return false;
-        }
-
-        async function initDictionary(forceDownload = false) {
-            if (!forceDownload) {
-                updateDictStatus("loading", "Vérification du Wiktionnaire...");
-                const cachedArray = await readCachedDictionary();
-                if (Array.isArray(cachedArray) && cachedArray.length > 200000) {
-                    dictionarySet = new Set(cachedArray);
-                    dictionaryCount = dictionarySet.size;
-                    dictionaryReady = true;
-                    updateDictStatus("ready", `Wiktionnaire FR (${formatCountFr(dictionaryCount)} mots)`);
-                    return;
-                }
-            }
-            await downloadAndBuildDictionary();
-        }
-
-        /* État du jeu */
-        let board = [];
-        let foundWords = [];
-        let selectedIndices = [];
-        let isDragging = false;
-        let isPlaying = false;
-        let timeRemaining = 120;
-        let timerInterval = null;
-
-        /* Tirage aléatoire des 16 dés français */
-        function generateBoard() {
-            const dice = [...FRENCH_DICE];
-            for (let i = dice.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [dice[i], dice[j]] = [dice[j], dice[i]];
-            }
-            board = dice.map(faces => faces[Math.floor(Math.random() * 6)]);
-            renderBoard();
-        }
-
-        function renderBoard() {
-            const container = document.getElementById("grid-container");
-            container.innerHTML = "";
-            board.forEach((letter, idx) => {
-                const tile = document.createElement("div");
-                tile.className = "dice-tile rounded-2xl flex items-center justify-center text-3xl font-black text-slate-900 cursor-pointer touch-none";
-                tile.dataset.index = idx;
-                tile.textContent = letter;
-                container.appendChild(tile);
-            });
-            clearSelection();
-        }
-
-        /* Démarrage de la partie (2 minutes) */
-        function startGame() {
-            clearInterval(timerInterval);
-            generateBoard();
-            foundWords = [];
-            selectedIndices = [];
-            isDragging = false;
-            isPlaying = true;
-            timeRemaining = 120;
-
-            document.getElementById("start-overlay").classList.add("hidden");
-            document.getElementById("modal-results").classList.add("hidden");
-            document.getElementById("modal-results").classList.remove("flex");
-            document.getElementById("btn-stop-early").classList.remove("hidden");
-            document.getElementById("points-hint").classList.add("hidden");
-
-            renderFoundWords();
-            updateTimerDisplay();
-
-            timerInterval = setInterval(() => {
-                timeRemaining--;
-                updateTimerDisplay();
-                if (timeRemaining <= 0) {
-                    finishGame();
-                }
-            }, 1000);
-        }
-
-        function updateTimerDisplay() {
-            const mins = String(Math.floor(Math.max(0, timeRemaining) / 60)).padStart(2, "0");
-            const secs = String(Math.max(0, timeRemaining) % 60).padStart(2, "0");
-            document.getElementById("timer-display").textContent = `${mins}:${secs}`;
-            const box = document.getElementById("timer-box");
-            if (timeRemaining <= 15 && isPlaying) {
-                box.classList.add("border-rose-500", "text-rose-400");
-            } else {
-                box.classList.remove("border-rose-500", "text-rose-400");
-            }
-        }
-
-        /* Fin de partie et ouverture des scores */
-        function finishGame() {
-            clearInterval(timerInterval);
-            isPlaying = false;
-            isDragging = false;
-            clearSelection();
-
-            document.getElementById("btn-stop-early").classList.add("hidden");
-            document.getElementById("points-hint").classList.remove("hidden");
-            document.getElementById("overlay-heading").textContent = "Partie terminée !";
-            document.getElementById("overlay-subtext").textContent = "Consultez vos points ou lancez une nouvelle grille de 16 dés.";
-            document.getElementById("btn-start").textContent = "REJOUER";
-            document.getElementById("start-overlay").classList.remove("hidden");
-
-            const modal = document.getElementById("modal-results");
-            modal.classList.remove("hidden");
-            modal.classList.add("flex");
-            calculateAndShowResults();
-        }
-
-        /* Gestion du glissement tactile et souris (y compris diagonales) */
-        function areAdjacent(i1, i2) {
-            if (i1 === i2) return false;
-            const r1 = Math.floor(i1 / 4), c1 = i1 % 4;
-            const r2 = Math.floor(i2 / 4), c2 = i2 % 4;
-            return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
-        }
-
-        function getTileIndexAt(clientX, clientY) {
-            const el = document.elementFromPoint(clientX, clientY);
-            if (!el) return null;
-            const tile = el.closest(".dice-tile");
-            if (!tile) return null;
-            const rect = tile.getBoundingClientRect();
-            const padX = rect.width * 0.08;
-            const padY = rect.height * 0.08;
-            if (clientX >= rect.left + padX && clientX <= rect.right - padX &&
-                clientY >= rect.top + padY && clientY <= rect.bottom - padY) {
-                return Number(tile.dataset.index);
-            }
-            return null;
-        }
-
-        function handleStart(x, y) {
-            if (!isPlaying) return;
-            const idx = getTileIndexAt(x, y);
-            if (idx !== null) {
-                isDragging = true;
-                selectedIndices = [idx];
-                updateSelectionUI();
-            }
-        }
-
-        function handleMove(x, y) {
-            if (!isDragging || !isPlaying) return;
-            const idx = getTileIndexAt(x, y);
-            if (idx === null) return;
-
-            const lastIdx = selectedIndices[selectedIndices.length - 1];
-            if (idx === lastIdx) return;
-
-            /* Retour arrière sur l'avant-dernière case */
-            if (selectedIndices.length >= 2 && idx === selectedIndices[selectedIndices.length - 2]) {
-                selectedIndices.pop();
-                updateSelectionUI();
-                return;
-            }
-
-            if (!selectedIndices.includes(idx) && areAdjacent(lastIdx, idx)) {
-                selectedIndices.push(idx);
-                updateSelectionUI();
-            }
-        }
-
-        function handleEnd() {
-            if (!isDragging) return;
-            isDragging = false;
-            if (isPlaying && selectedIndices.length >= 3) {
-                const word = normalizeWord(selectedIndices.map(i => board[i]).join(""));
-                if (word.length >= 3 && !foundWords.includes(word)) {
-                    foundWords.unshift(word);
-                    renderFoundWords();
-                }
-            }
-            clearSelection();
-        }
-
-        function updateSelectionUI() {
-            const tiles = document.querySelectorAll(".dice-tile");
-            tiles.forEach((tile, i) => {
-                tile.classList.remove("selected", "last");
-                const pos = selectedIndices.indexOf(i);
-                if (pos !== -1) {
-                    tile.classList.add("selected");
-                    if (pos === selectedIndices.length - 1) tile.classList.add("last");
-                }
-            });
-
-            const pill = document.getElementById("current-word-pill");
-            if (selectedIndices.length > 0) {
-                pill.textContent = selectedIndices.map(i => board[i]).join("");
-            } else {
-                pill.innerHTML = '<span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>';
-            }
-            drawPathLine();
-        }
-
-        function clearSelection() {
-            selectedIndices = [];
-            document.querySelectorAll(".dice-tile").forEach(t => t.classList.remove("selected", "last"));
-            document.getElementById("line-svg").innerHTML = "";
-            document.getElementById("current-word-pill").innerHTML = '<span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>';
-        }
-
-        function drawPathLine() {
-            const svg = document.getElementById("line-svg");
-            svg.innerHTML = "";
-            if (selectedIndices.length < 2) return;
-
-            const svgRect = svg.getBoundingClientRect();
-            const tiles = document.querySelectorAll(".dice-tile");
-            const points = selectedIndices.map(i => {
-                const r = tiles[i].getBoundingClientRect();
-                return `${r.left - svgRect.left + r.width / 2},${r.top - svgRect.top + r.height / 2}`;
-            }).join(" ");
-
-            const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-            polyline.setAttribute("points", points);
-            polyline.setAttribute("fill", "none");
-            polyline.setAttribute("stroke", "rgba(245, 158, 11, 0.85)");
-            polyline.setAttribute("stroke-width", "8");
-            polyline.setAttribute("stroke-linecap", "round");
-            polyline.setAttribute("stroke-linejoin", "round");
-            svg.appendChild(polyline);
-        }
-
-        /* Liste des mots trouvés pendant la partie (aucun point affiché) */
-        function renderFoundWords() {
-            document.getElementById("words-count").textContent = foundWords.length;
-            const list = document.getElementById("words-list");
-            if (foundWords.length === 0) {
-                list.innerHTML = '<span class="text-xs italic text-slate-400">Aucun mot formé pour l\'instant...</span>';
-                return;
-            }
-            list.innerHTML = foundWords.map(w =>
-                `<span class="bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold tracking-wider text-slate-100">${w}</span>`
-            ).join("");
-        }
-
-        /* Barème exact : 1 pt pour 3-4 lettres, +2 pts par lettre supplémentaire */
-        function computePoints(word) {
-            if (word.length < 3) return 0;
-            if (word.length <= 4) return 1;
-            return 1 + (word.length - 4) * 2;
-        }
-
-        /* Calcul des scores en O(1) via le Set normalisé (sans accents, conjugaisons incluses) */
-        function calculateAndShowResults() {
-            const listEl = document.getElementById("results-list");
-            const subEl = document.getElementById("score-subtitle");
-            const scoreEl = document.getElementById("final-score");
-            const unitEl = document.getElementById("final-score-unit");
-
-            if (foundWords.length === 0) {
-                scoreEl.textContent = "0";
-                unitEl.textContent = "point";
-                subEl.textContent = "Aucun mot trouvé";
-                listEl.innerHTML = '<p class="text-center text-sm text-slate-400 py-4">Vous n\'avez formé aucun mot durant cette manche.</p>';
-                return;
-            }
-
-            let totalScore = 0;
-            listEl.innerHTML = foundWords.map(word => {
-                const isValid = dictionarySet.has(normalizeWord(word));
-                const pts = isValid ? computePoints(word) : 0;
-                totalScore += pts;
-
-                if (isValid) {
-                    return `<div class="flex justify-between items-center bg-slate-800/90 border border-emerald-500/40 rounded-xl px-3 py-2">
-                        <div class="flex items-center gap-2">
-                            <span class="w-5 h-5 rounded bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">✓</span>
-                            <strong class="tracking-wide text-white">${word}</strong>
-                            <span class="text-xs text-slate-400">(${word.length} l.)</span>
-                        </div>
-                        <span class="font-extrabold text-amber-400">+${pts} pt${pts > 1 ? "s" : ""}</span>
-                    </div>`;
-                } else {
-                    return `<div class="flex justify-between items-center bg-slate-800/40 border border-slate-700/70 rounded-xl px-3 py-2 opacity-70">
-                        <div class="flex items-center gap-2">
-                            <span class="text-rose-500 font-black text-sm">✕</span>
-                            <span class="line-through text-slate-400 font-semibold">${word}</span>
-                            <span class="text-xs text-slate-500">(${word.length} l.)</span>
-                        </div>
-                        <span class="text-xs font-bold text-slate-500">0 pt</span>
-                    </div>`;
-                }
-            }).join("");
-
-            scoreEl.textContent = totalScore;
-            unitEl.textContent = totalScore > 1 ? "points" : "point";
-            subEl.textContent = dictionaryReady
-                ? `Wiktionnaire FR local (${formatCountFr(dictionaryCount)} mots)`
-                : "Dictionnaire de secours (hors-ligne)";
-        }
-
-        /* Initialisation de l'application */
-        function initApp() {
-            generateBoard();
-            initDictionary(false);
-
-            const btnStart = document.getElementById("btn-start");
-            btnStart.addEventListener("touchstart", e => {
-                e.preventDefault();
-                startGame();
-            }, { passive: false });
-
-            document.getElementById("btn-refresh-dict").addEventListener("click", () => {
-                initDictionary(true);
-            });
-
-            document.getElementById("btn-shuffle").addEventListener("click", startGame);
-            document.getElementById("btn-stop-early").addEventListener("click", finishGame);
-            document.getElementById("btn-play-again").addEventListener("click", startGame);
-
-            document.getElementById("btn-view-board").addEventListener("click", () => {
-                const m = document.getElementById("modal-results");
-                m.classList.add("hidden");
-                m.classList.remove("flex");
-            });
-
-            document.getElementById("btn-rules").addEventListener("click", () => {
-                const m = document.getElementById("modal-rules");
-                m.classList.remove("hidden");
-                m.classList.add("flex");
-            });
-            ["btn-close-rules", "btn-ok-rules"].forEach(id => {
-                document.getElementById(id).addEventListener("click", () => {
-                    const m = document.getElementById("modal-rules");
-                    m.classList.add("hidden");
-                    m.classList.remove("flex");
-                });
-            });
-
-            document.getElementById("btn-export").addEventListener("click", () => {
-                const blob = new Blob(["<!DOCTYPE html>\n" + document.documentElement.outerHTML], { type: "text/html;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "index.html";
-                a.click();
-                URL.revokeObjectURL(url);
-            });
-
-            const grid = document.getElementById("grid-container");
-            grid.addEventListener("touchstart", e => {
-                if (!isPlaying) return;
-                e.preventDefault();
-                handleStart(e.touches[0].clientX, e.touches[0].clientY);
-            }, { passive: false });
-
-            grid.addEventListener("touchmove", e => {
-                if (!isDragging) return;
-                e.preventDefault();
-                handleMove(e.touches[0].clientX, e.touches[0].clientY);
-            }, { passive: false });
-
-            window.addEventListener("touchend", handleEnd);
-
-            grid.addEventListener("mousedown", e => {
-                if (e.button === 0) handleStart(e.clientX, e.clientY);
-            });
-            window.addEventListener("mousemove", e => {
-                if (isDragging) handleMove(e.clientX, e.clientY);
-            });
-            window.addEventListener("mouseup", handleEnd);
-        }
-
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", initApp);
+      });
+
+      if (selectedIndices.length > 1) {
+        const pts = selectedIndices.map(idx => {
+          const r = Math.floor(idx / 4);
+          const c = idx % 4;
+          const x = c * 25 + 12.5;
+          const y = r * 25 + 12.5;
+          return `${x},${y}`;
+        }).join(' ');
+        polylineEl.setAttribute('points', pts);
+      } else {
+        polylineEl.setAttribute('points', '');
+      }
+
+      if (selectedIndices.length > 0) {
+        const word = selectedIndices.map(i => boardLetters[i]).join('');
+        currentWordText.textContent = word;
+        currentWordText.className = 'text-amber-400 text-xl font-black tracking-widest';
+      } else {
+        currentWordText.textContent = 'Glissez sur les lettres...';
+        currentWordText.className = 'text-slate-500 text-sm font-semibold tracking-wider';
+      }
+    }
+
+    function getCellIndexFromPoint(clientX, clientY) {
+      const rect = boardEl.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return -1;
+
+      const col = Math.floor((x / rect.width) * 4);
+      const row = Math.floor((y / rect.height) * 4);
+      const idx = row * 4 + col;
+
+      const cellW = rect.width / 4;
+      const cellH = rect.height / 4;
+      const centerX = (col + 0.5) * cellW;
+      const centerY = (row + 0.5) * cellH;
+      const dist = Math.hypot(x - centerX, y - centerY);
+      const maxRadius = Math.min(cellW, cellH) * 0.46;
+
+      return dist <= maxRadius ? idx : -1;
+    }
+
+    function handlePointerDown(e) {
+      if (!isPlaying) return;
+      const idx = getCellIndexFromPoint(e.clientX, e.clientY);
+      if (idx === -1) return;
+      isDragging = true;
+      selectedIndices = [idx];
+      updateSelectionVisuals();
+    }
+
+    function handlePointerMove(e) {
+      if (!isPlaying || !isDragging) return;
+      const idx = getCellIndexFromPoint(e.clientX, e.clientY);
+      if (idx === -1) return;
+
+      const lastIdx = selectedIndices[selectedIndices.length - 1];
+      if (idx === lastIdx) return;
+
+      if (selectedIndices.length >= 2 && idx === selectedIndices[selectedIndices.length - 2]) {
+        selectedIndices.pop();
+        updateSelectionVisuals();
+        return;
+      }
+
+      if (!selectedIndices.includes(idx) && isAdjacent(lastIdx, idx)) {
+        selectedIndices.push(idx);
+        updateSelectionVisuals();
+      }
+    }
+
+    function handlePointerUp() {
+      if (!isPlaying || !isDragging) return;
+      isDragging = false;
+
+      if (selectedIndices.length >= 3) {
+        const word = selectedIndices.map(i => boardLetters[i]).join('');
+        if (!foundWords.includes(word)) {
+          foundWords.push(word);
+          renderFoundWordsList();
         } else {
-            initApp();
+          currentWordBar.classList.add('animate-shake');
+          setTimeout(() => currentWordBar.classList.remove('animate-shake'), 260);
         }
-    </script>
+      }
+
+      selectedIndices = [];
+      updateSelectionVisuals();
+    }
+
+    boardEl.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    function renderFoundWordsList() {
+      foundCountEl.textContent = foundWords.length;
+      if (foundWords.length === 0) {
+        foundWordsContainer.innerHTML = '<span class="text-slate-500 text-xs italic">Aucun mot formé pour l\'instant...</span>';
+        return;
+      }
+      foundWordsContainer.innerHTML = foundWords
+        .slice()
+        .reverse()
+        .map(w => `<span class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs tracking-wider">${w}</span>`)
+        .join('');
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function computePoints(word) {
+      const len = word.length;
+      if (len < 3) return 0;
+      if (len <= 4) return 1;
+      return 1 + (len - 4) * 2;
+    }
+
+    function startGame() {
+      clearInterval(timerInterval);
+      boardLetters = rollDice();
+      foundWords = [];
+      selectedIndices = [];
+      isDragging = false;
+      timeLeft = 120;
+      isPlaying = true;
+
+      document.getElementById('overlay-start').classList.add('hidden');
+      document.getElementById('overlay-end').classList.add('hidden');
+      document.getElementById('post-game-bar').classList.add('hidden');
+
+      timerDisplay.textContent = formatTime(timeLeft);
+      timerBox.className = 'bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-amber-400';
+
+      renderBoard();
+      updateSelectionVisuals();
+      renderFoundWordsList();
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        timerDisplay.textContent = formatTime(Math.max(0, timeLeft));
+        if (timeLeft <= 15) {
+          timerBox.className = 'bg-rose-950/70 border border-rose-500/60 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono font-bold text-base text-rose-400 animate-pulse';
+        }
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      clearInterval(timerInterval);
+      isPlaying = false;
+      isDragging = false;
+      selectedIndices = [];
+      updateSelectionVisuals();
+
+      let totalScore = 0;
+      const evaluated = foundWords.map(word => {
+        const valid = dictionarySet.has(word);
+        const pts = valid ? computePoints(word) : 0;
+        totalScore += pts;
+        return { word, valid, pts };
+      });
+
+      document.getElementById('final-score').textContent = totalScore;
+      document.getElementById('final-score-label').textContent = totalScore > 1 ? 'points' : 'point';
+      document.getElementById('final-dict-info').textContent =
+        `Méga-Dictionnaire FR (${dictionarySet.size.toLocaleString('fr-FR')} mots)`;
+
+      const resultsListEl = document.getElementById('results-list');
+      if (evaluated.length === 0) {
+        resultsListEl.innerHTML = '<div class="text-center text-slate-400 text-sm py-8">Aucun mot proposé durant cette manche.</div>';
+      } else {
+        resultsListEl.innerHTML = evaluated.map(item => {
+          if (item.valid) {
+            return `
+              <div class="flex items-center justify-between bg-slate-900 border border-emerald-500/30 rounded-xl px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-black">✓</span>
+                  <span class="font-extrabold text-white tracking-wider text-sm">${item.word}</span>
+                  <span class="text-xs text-slate-400">(${item.word.length} l.)</span>
+                </div>
+                <span class="font-black text-amber-400 text-sm">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
+              </div>
+            `;
+          } else {
+            return `
+              <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 opacity-75">
+                <div class="flex items-center gap-2">
+                  <span class="w-5 h-5 rounded-md bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs font-black">✕</span>
+                  <span class="font-bold text-slate-400 line-through tracking-wider text-sm">${item.word}</span>
+                  <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
+                </div>
+                <span class="font-bold text-slate-500 text-sm">0 pt</span>
+              </div>
+            `;
+          }
+        }).join('');
+      }
+
+      document.getElementById('overlay-end').classList.remove('hidden');
+    }
+
+    function viewBoardAfterEnd() {
+      document.getElementById('overlay-end').classList.add('hidden');
+      document.getElementById('post-game-bar').classList.remove('hidden');
+    }
+
+    function reopenResults() {
+      document.getElementById('post-game-bar').classList.add('hidden');
+      document.getElementById('overlay-end').classList.remove('hidden');
+    }
+
+    // Initialisation au chargement
+    boardLetters = rollDice();
+    renderBoard();
+    initDictionary(false);
+  </script>
 </body>
 </html>
