@@ -201,6 +201,9 @@
           <button id="pause-new-draw-btn" onclick="startGame()" class="w-full py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-sm active:scale-95 transition">
             Nouveau tirage
           </button>
+          <button onclick="returnToHome()" class="w-full py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-sm active:scale-95 transition">
+            Revenir à l’accueil
+          </button>
         </div>
       </div>
 
@@ -1190,6 +1193,29 @@
       isPaused = false;
       overlayPauseEl.classList.add('hidden');
       startBackgroundMusic();
+    }
+
+    function returnToHome() {
+      clearInterval(timerInterval);
+      stopBackgroundMusic();
+      isPlaying = false;
+      isPaused = false;
+      isDragging = false;
+      selectedIndices = [];
+      foundWords = [];
+      timeLeft = 120;
+
+      timerDisplay.textContent = formatTime(timeLeft);
+      timerBox.className = 'w-[84px] justify-center bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-amber-400 shrink-0';
+
+      updateSelectionVisuals();
+      renderFoundWordsList();
+      setExpandedResultsLayout(false);
+
+      overlayPauseEl.classList.add('hidden');
+      document.getElementById('overlay-end').classList.add('hidden');
+      document.getElementById('post-game-bar').classList.add('hidden');
+      closeMultiplayerLobby();
     }
 
     function rollDice() {
