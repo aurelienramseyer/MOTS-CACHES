@@ -211,7 +211,7 @@
       </div>
 
       <p class="text-xs text-slate-300 leading-relaxed mb-3">
-        Sélectionnez un ou plusieurs fichiers téléchargés sur votre téléphone (<code class="text-amber-400">.txt</code>, <code class="text-amber-400">.dic</code>, <code class="text-amber-400">.gz</code> ou <code class="text-amber-400">.jsonl.gz</code>). Ils seront nettoyés (sans accents), fusionnés et enregistrés définitivement dans votre navigateur.
+        Sélectionnez un ou plusieurs fichiers téléchargés sur votre téléphone (<code class="text-amber-400">.txt</code>, <code class="text-amber-400">.dic</code>, <code class="text-amber-400">.gz</code> ou <code class="text-amber-400">.jsonl.gz</code>). Les noms propres et sigles sont automatiquement exclus, et le dictionnaire est enregistré définitivement.
       </p>
 
       <!-- Résumé de la base actuelle -->
@@ -252,7 +252,7 @@
 
   <script>
     // =========================================================================
-    // 0. SYNTHÈSE AUDIO SANS DROIT D'AUTEUR (MUSIQUE + RÉVEIL FIN DE PARTIE)
+    // 0. SYNTHÈSE AUDIO SANS DROIT D'AUTEUR (MUSIQUE + COMPTE À REBOURS + RÉVEIL)
     // =========================================================================
     let audioCtx = null;
     let musicInterval = null;
@@ -268,7 +268,6 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume().catch(() => {});
       }
-      // Joue un micro-tampon silencieux pour débloquer l'audio mobile (Android/iOS)
       if (audioCtx) {
         try {
           const buffer = audioCtx.createBuffer(1, 1, 22050);
@@ -281,10 +280,8 @@
       return audioCtx;
     }
 
-    // Débloquer l'audio dès la première interaction tactile/clic sur la page
     window.addEventListener('pointerdown', unlockAudio, { once: true });
 
-    // Mélodie douce pentatonique générée par Web Audio API (libre de droits)
     const MELODY_NOTES = [
       392.00, 440.00, 523.25, 659.25,
       523.25, 440.00, 392.00, 523.25,
@@ -345,6 +342,29 @@
       }
     }
 
+    // Bip court pour chacune des 5 dernières secondes (5, 4, 3, 2, 1)
+    function playCountdownBeep() {
+      const ctx = unlockAudio();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(987.77, now); // Si5 net et audible
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.15);
+    }
+
     // Sonnerie de réveil (~2 secondes) à la fin des 2 minutes
     function playAlarmSound() {
       const ctx = unlockAudio();
@@ -398,7 +418,7 @@
     ];
 
     // =========================================================================
-    // 2. STOCKAGE INDEXEDDB PERSISTANT + ARBRE PRÉFIXE (TRIE) POUR SOLVEUR 4x4
+    // 2. STOCKAGE INDEXEDDB PERSISTANT + FILTRAGE NOMS PROPRES/SIGLES + SOLVEUR 4x4
     // =========================================================================
     const DB_NAME = 'MotsCachesUserDictDB';
     const DB_VERSION = 1;
@@ -477,7 +497,20 @@
         .toUpperCase();
     }
 
-    function addCandidateWord(raw, targetSet) {
+    // Détecte si la forme originale est un nom propre (majuscule initiale) ou un sigle (tout en majuscules)
+    function isProperNounOrAcronym(rawToken) {
+      if (!rawToken) return true;
+      const firstChar = rawToken[0];
+      const upperFirst = firstChar.toLocaleUpperCase('fr-FR');
+      const lowerFirst = firstChar.toLocaleLowerCase('fr-FR');
+      // Si la première lettre possède une casse et qu'elle est en majuscule (ex: "Italie", "TBI"), exclure
+      if (upperFirst !== lowerFirst && firstChar === upperFirst) {
+        return true;
+      }
+      return false;
+    }
+
+    function addCandidateWord(raw, targetSet, checkCase = true) {
       if (!raw) return;
       let w = raw.trim();
       if (!w) return;
@@ -485,6 +518,10 @@
       if (slashIdx > 0) w = w.slice(0, slashIdx);
       const tabIdx = w.indexOf('\t');
       if (tabIdx > 0) w = w.slice(0, tabIdx);
+
+      if (checkCase && isProperNounOrAcronym(w)) {
+        return;
+      }
 
       const clean = normalizeWord(w);
       if (clean.length >= 3 && clean.length <= 16 && /^[A-Z]+$/.test(clean)) {
@@ -601,14 +638,39 @@
       input.click();
     }
 
+    const EXCLUDED_POS = new Set(['name', 'proper-noun', 'symbol', 'character', 'punct', 'affix', 'prefix', 'suffix']);
+    const EXCLUDED_TAGS = new Set(['abbreviation', 'acronym', 'initialism', 'symbol', 'letter']);
+
+    function hasExcludedTag(tags) {
+      if (!Array.isArray(tags)) return false;
+      for (let i = 0; i < tags.length; i++) {
+        if (EXCLUDED_TAGS.has(tags[i])) return true;
+      }
+      return false;
+    }
+
     function extractWordsFromJsonlLine(line, targetSet) {
       try {
         const obj = JSON.parse(line);
-        if (obj.word) addCandidateWord(obj.word, targetSet);
+        // Exclure les noms propres, symboles, affixes et entrées marquées comme sigles/abréviations
+        if (obj.pos && EXCLUDED_POS.has(obj.pos)) return;
+        if (hasExcludedTag(obj.tags)) return;
+
+        // Vérifier aussi si tous les sens de l'entrée sont uniquement des sigles/abréviations
+        if (Array.isArray(obj.senses) && obj.senses.length > 0) {
+          const allSensesExcluded = obj.senses.every(s => s && hasExcludedTag(s.tags));
+          if (allSensesExcluded) return;
+        }
+
+        if (obj.word) {
+          addCandidateWord(obj.word, targetSet, true);
+        }
         if (Array.isArray(obj.forms)) {
           for (let i = 0; i < obj.forms.length; i++) {
             const f = obj.forms[i];
-            if (f && f.form) addCandidateWord(f.form, targetSet);
+            if (f && f.form && !hasExcludedTag(f.tags)) {
+              addCandidateWord(f.form, targetSet, true);
+            }
           }
         }
       } catch (_) {}
@@ -656,7 +718,7 @@
           if (isJsonl && line.startsWith('{')) {
             extractWordsFromJsonlLine(line, targetSet);
           } else {
-            addCandidateWord(line, targetSet);
+            addCandidateWord(line, targetSet, true);
           }
         }
       }
@@ -665,7 +727,7 @@
         if (isJsonl && leftover.startsWith('{')) {
           extractWordsFromJsonlLine(leftover, targetSet);
         } else {
-          addCandidateWord(leftover, targetSet);
+          addCandidateWord(leftover, targetSet, true);
         }
       }
     }
@@ -969,6 +1031,9 @@
         timerDisplay.textContent = formatTime(Math.max(0, timeLeft));
         if (timeLeft <= 15) {
           timerBox.className = 'w-[84px] justify-center bg-rose-950/70 border border-rose-500/60 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-rose-400 animate-pulse shrink-0';
+        }
+        if (timeLeft >= 1 && timeLeft <= 5) {
+          playCountdownBeep();
         }
         if (timeLeft <= 0) {
           endGame();
