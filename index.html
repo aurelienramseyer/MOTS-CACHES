@@ -64,9 +64,9 @@
     <!-- En-tête compact et figé -->
     <header class="bg-slate-900/90 border border-slate-800 rounded-2xl px-3 py-2 flex items-center justify-between gap-2 shadow-lg shrink-0">
       <div class="flex items-center gap-2.5 min-w-0 flex-1">
-        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shrink-0">
+        <button id="logo-m-btn" onclick="togglePauseMenuBtn()" title="Options de partie" class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shrink-0 active:scale-95 transition">
           M
-        </div>
+        </button>
         <div class="min-w-0 flex-1">
           <h1 class="font-black text-base tracking-wide text-amber-400 leading-none whitespace-nowrap">MOTS CACHÉS</h1>
           <div class="flex items-center gap-1.5 mt-1">
@@ -87,7 +87,7 @@
       </div>
     </header>
 
-    <!-- Zone principale : Grille 4x4 + Écrans superposés (s'étend jusqu'en bas à la fin) -->
+    <!-- Zone principale : Grille 4x4 + Écrans superposés -->
     <div id="main-stage" class="relative w-full aspect-square bg-slate-900/95 border-2 border-amber-500/40 rounded-3xl p-3 shadow-2xl shrink-0">
 
       <!-- Grille des 16 dés -->
@@ -123,12 +123,32 @@
         </button>
       </div>
 
-      <!-- Écran de fin / Résultats (étendu jusqu'en bas pour maximiser la liste de mots) -->
+      <!-- Écran de pause (cache totalement la grille) -->
+      <div id="overlay-pause" class="hidden absolute inset-0 bg-slate-950 rounded-3xl flex flex-col items-center justify-center p-6 text-center z-40">
+        <div class="w-14 h-14 rounded-2xl bg-slate-900 border border-amber-500/40 flex items-center justify-center text-2xl mb-3">
+          ⏸
+        </div>
+        <h2 class="text-xl font-extrabold text-white mb-1">Jeu en pause</h2>
+        <p class="text-slate-400 text-xs mb-6">La grille est masquée pendant la pause.</p>
+        <div class="w-full max-w-xs flex flex-col gap-2.5">
+          <button onclick="resumeGame()" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm tracking-wide shadow-lg active:scale-95 transition">
+            Reprendre
+          </button>
+          <button onclick="startGame()" class="w-full py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-sm active:scale-95 transition">
+            Nouveau tirage
+          </button>
+        </div>
+      </div>
+
+      <!-- Écran de fin / Résultats -->
       <div id="overlay-end" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-3xl flex flex-col overflow-hidden z-30 animate-pop">
         <div class="bg-gradient-to-r from-amber-400 to-orange-500 py-2.5 px-4 text-center text-slate-950 shrink-0">
           <div class="flex items-baseline justify-center gap-1.5">
             <span id="final-score" class="text-3xl font-black tabular-fixed leading-none">0</span>
-            <span id="final-score-label" class="text-base font-extrabold leading-none">points</span>
+            <span id="final-score-detail" class="text-sm font-extrabold leading-none">points sur 0 possibles</span>
+          </div>
+          <div id="final-words-detail" class="text-xs font-bold opacity-90 mt-1 leading-none">
+            0 mot trouvé sur 0 possible
           </div>
         </div>
 
@@ -171,9 +191,12 @@
       </div>
     </section>
 
-    <!-- Pied de page barème -->
-    <footer id="footer-bar" class="text-center text-[11px] text-slate-500 shrink-0">
-      Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire
+    <!-- Pied de page barème + petit bouton discret de pause (affiché via clic sur M) -->
+    <footer id="footer-bar" class="flex items-center justify-center gap-2 text-center text-[11px] text-slate-500 shrink-0 min-h-[22px]">
+      <span>Barème : 3-4 lettres = 1 pt • 5 lettres = 3 pts • +2 pts / lettre supplémentaire</span>
+      <button id="pause-trigger-btn" onclick="pauseGame()" class="hidden px-2 py-0.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-amber-400 text-[10px] font-bold tracking-wide shrink-0 active:scale-95 transition">
+        ⏸ Pause
+      </button>
     </footer>
 
   </div>
@@ -232,6 +255,108 @@
 
   <script>
     // =========================================================================
+    // 0. SYNTHÈSE AUDIO SANS DROIT D'AUTEUR (MUSIQUE DOUCE + RÉVEIL FIN DE PARTIE)
+    // =========================================================================
+    let audioCtx = null;
+    let musicInterval = null;
+    let musicStep = 0;
+
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    // Petite mélodie douce pentatonique générée par Web Audio API (libre de droits)
+    const MELODY_NOTES = [
+      261.63, 329.63, 392.00, 523.25,
+      392.00, 329.63, 293.66, 392.00,
+      261.63, 329.63, 440.00, 392.00,
+      329.63, 293.66, 261.63, 0
+    ];
+
+    function playMelodyNote(freq) {
+      if (!freq) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.025, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.45);
+    }
+
+    function startBackgroundMusic() {
+      stopBackgroundMusic();
+      ensureAudioContext();
+      musicStep = 0;
+      playMelodyNote(MELODY_NOTES[0]);
+      musicStep = 1;
+      musicInterval = setInterval(() => {
+        if (!isPlaying || isPaused) return;
+        playMelodyNote(MELODY_NOTES[musicStep % MELODY_NOTES.length]);
+        musicStep++;
+      }, 480);
+    }
+
+    function stopBackgroundMusic() {
+      if (musicInterval) {
+        clearInterval(musicInterval);
+        musicInterval = null;
+      }
+    }
+
+    // Sonnerie de réveil (~2 secondes) à la fin des 2 minutes
+    function playAlarmSound() {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      // 4 salves de double bip sur 2.0 secondes
+      for (let burst = 0; burst < 4; burst++) {
+        const burstStart = now + burst * 0.5;
+        for (let beep = 0; beep < 2; beep++) {
+          const t0 = burstStart + beep * 0.14;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(880, t0);
+          osc.frequency.setValueAtTime(1174.66, t0 + 0.05);
+
+          gain.gain.setValueAtTime(0.0001, t0);
+          gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(t0);
+          osc.stop(t0 + 0.12);
+        }
+      }
+    }
+
+    // =========================================================================
     // 1. LES 16 DÉS FRANÇAIS (96 FACES CALIBRÉES : 1 SEUL Z, 1 SEUL W)
     // =========================================================================
     const FRENCH_DICE = [
@@ -254,7 +379,7 @@
     ];
 
     // =========================================================================
-    // 2. STOCKAGE INDEXEDDB PERSISTANT + IMPORTATION & FUSION DE FICHIERS LOCAUX
+    // 2. STOCKAGE INDEXEDDB PERSISTANT + ARBRE PRÉFIXE (TRIE) POUR SOLVEUR 4x4
     // =========================================================================
     const DB_NAME = 'MotsCachesUserDictDB';
     const DB_VERSION = 1;
@@ -262,8 +387,68 @@
     const DICT_KEY = 'user_merged_fr_dict';
 
     let dictionarySet = new Set();
+    let prefixSet = new Set();
     let importedFileNames = [];
     let importMode = 'merge';
+
+    const ADJACENT_CELLS = Array.from({ length: 16 }, (_, idx) => {
+      const r = Math.floor(idx / 4);
+      const c = idx % 4;
+      const neighbors = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < 4 && nc >= 0 && nc < 4) {
+            neighbors.push(nr * 4 + nc);
+          }
+        }
+      }
+      return neighbors;
+    });
+
+    function rebuildPrefixIndex() {
+      const nextPrefixes = new Set();
+      for (const word of dictionarySet) {
+        for (let len = 1; len < word.length; len++) {
+          nextPrefixes.add(word.slice(0, len));
+        }
+      }
+      prefixSet = nextPrefixes;
+    }
+
+    function solveBoardWords(letters) {
+      if (dictionarySet.size === 0 || letters.length !== 16) return [];
+      const foundOnBoard = new Set();
+      const visited = new Uint8Array(16);
+
+      function dfs(cellIdx, currentWord) {
+        if (currentWord.length >= 3 && dictionarySet.has(currentWord)) {
+          foundOnBoard.add(currentWord);
+        }
+        if (currentWord.length >= 16 || !prefixSet.has(currentWord)) {
+          return;
+        }
+        const neighbors = ADJACENT_CELLS[cellIdx];
+        for (let i = 0; i < neighbors.length; i++) {
+          const nextIdx = neighbors[i];
+          if (!visited[nextIdx]) {
+            visited[nextIdx] = 1;
+            dfs(nextIdx, currentWord + letters[nextIdx]);
+            visited[nextIdx] = 0;
+          }
+        }
+      }
+
+      for (let startIdx = 0; startIdx < 16; startIdx++) {
+        visited[startIdx] = 1;
+        dfs(startIdx, letters[startIdx]);
+        visited[startIdx] = 0;
+      }
+
+      return Array.from(foundOnBoard);
+    }
 
     function normalizeWord(str) {
       return str
@@ -347,13 +532,16 @@
           const arr = saved.wordsText.split('\n');
           dictionarySet = new Set(arr.filter(Boolean));
           importedFileNames = Array.isArray(saved.fileNames) ? saved.fileNames : [];
+          rebuildPrefixIndex();
         } else {
           dictionarySet = new Set();
+          prefixSet = new Set();
           importedFileNames = [];
         }
       } catch (e) {
         console.warn('Lecture IndexedDB:', e);
         dictionarySet = new Set();
+        prefixSet = new Set();
         importedFileNames = [];
       }
       updateHeaderStatus();
@@ -494,6 +682,7 @@
 
         dictionarySet = workingSet;
         importedFileNames = workingNames;
+        rebuildPrefixIndex();
         await persistDictionary();
 
         updateHeaderStatus();
@@ -506,6 +695,7 @@
 
     async function clearSavedDictionary() {
       dictionarySet = new Set();
+      prefixSet = new Set();
       importedFileNames = [];
       try {
         await persistDictionary();
@@ -515,10 +705,11 @@
     }
 
     // =========================================================================
-    // 3. LOGIQUE DU JEU BOGGLE 4x4, GLISSEMENT TACTILE ET CALCUL DIFFÉRÉ
+    // 3. LOGIQUE DU JEU BOGGLE 4x4, PAUSE, GLISSEMENT TACTILE ET CALCUL DIFFÉRÉ
     // =========================================================================
     let boardLetters = [];
     let isPlaying = false;
+    let isPaused = false;
     let timeLeft = 120;
     let timerInterval = null;
 
@@ -535,6 +726,31 @@
     const timerBox = document.getElementById('timer-box');
     const mainStageEl = document.getElementById('main-stage');
     const footerBarEl = document.getElementById('footer-bar');
+    const pauseTriggerBtn = document.getElementById('pause-trigger-btn');
+    const overlayPauseEl = document.getElementById('overlay-pause');
+
+    function togglePauseMenuBtn() {
+      if (!isPlaying) return;
+      pauseTriggerBtn.classList.toggle('hidden');
+    }
+
+    function pauseGame() {
+      if (!isPlaying || isPaused) return;
+      isPaused = true;
+      isDragging = false;
+      selectedIndices = [];
+      updateSelectionVisuals();
+      stopBackgroundMusic();
+      overlayPauseEl.classList.remove('hidden');
+    }
+
+    function resumeGame() {
+      if (!isPlaying || !isPaused) return;
+      isPaused = false;
+      overlayPauseEl.classList.add('hidden');
+      pauseTriggerBtn.classList.add('hidden');
+      startBackgroundMusic();
+    }
 
     function rollDice() {
       const diceCopy = [...FRENCH_DICE];
@@ -612,7 +828,7 @@
     }
 
     function handlePointerDown(e) {
-      if (!isPlaying) return;
+      if (!isPlaying || isPaused) return;
       const idx = getCellIndexFromPoint(e.clientX, e.clientY);
       if (idx === -1) return;
       isDragging = true;
@@ -621,7 +837,7 @@
     }
 
     function handlePointerMove(e) {
-      if (!isPlaying || !isDragging) return;
+      if (!isPlaying || isPaused || !isDragging) return;
       const idx = getCellIndexFromPoint(e.clientX, e.clientY);
       if (idx === -1) return;
 
@@ -641,7 +857,7 @@
     }
 
     function handlePointerUp() {
-      if (!isPlaying || !isDragging) return;
+      if (!isPlaying || isPaused || !isDragging) return;
       isDragging = false;
 
       if (selectedIndices.length >= 3) {
@@ -711,17 +927,22 @@
       }
 
       clearInterval(timerInterval);
+      stopBackgroundMusic();
+
       boardLetters = rollDice();
       foundWords = [];
       selectedIndices = [];
       isDragging = false;
       timeLeft = 120;
       isPlaying = true;
+      isPaused = false;
 
       setExpandedResultsLayout(false);
       document.getElementById('overlay-start').classList.add('hidden');
       document.getElementById('overlay-end').classList.add('hidden');
       document.getElementById('post-game-bar').classList.add('hidden');
+      overlayPauseEl.classList.add('hidden');
+      pauseTriggerBtn.classList.add('hidden');
 
       timerDisplay.textContent = formatTime(timeLeft);
       timerBox.className = 'w-[84px] justify-center bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl flex items-center gap-1.5 font-mono tabular-fixed font-bold text-sm text-amber-400 shrink-0';
@@ -729,8 +950,10 @@
       renderBoard();
       updateSelectionVisuals();
       renderFoundWordsList();
+      startBackgroundMusic();
 
       timerInterval = setInterval(() => {
+        if (isPaused) return;
         timeLeft--;
         timerDisplay.textContent = formatTime(Math.max(0, timeLeft));
         if (timeLeft <= 15) {
@@ -744,32 +967,65 @@
 
     function endGame() {
       clearInterval(timerInterval);
+      stopBackgroundMusic();
+      playAlarmSound();
+
       isPlaying = false;
+      isPaused = false;
       isDragging = false;
       selectedIndices = [];
+      overlayPauseEl.classList.add('hidden');
+      pauseTriggerBtn.classList.add('hidden');
       updateSelectionVisuals();
 
+      // Calcul de tous les mots possibles sur la grille 4x4
+      const allPossibleWords = solveBoardWords(boardLetters);
+      const possibleSet = new Set(allPossibleWords);
+      let maxPossibleScore = 0;
+      for (const w of allPossibleWords) {
+        maxPossibleScore += computePoints(w);
+      }
+
+      // Évaluation des mots proposés par le joueur
       let totalScore = 0;
+      let validFoundCount = 0;
+      const validFoundSet = new Set();
+
       const evaluated = foundWords.map(word => {
-        const valid = dictionarySet.has(word);
+        const valid = possibleSet.has(word) || dictionarySet.has(word);
         const pts = valid ? computePoints(word) : 0;
-        totalScore += pts;
+        if (valid) {
+          totalScore += pts;
+          validFoundCount++;
+          validFoundSet.add(word);
+        }
         return { word, valid, pts };
       });
 
+      // Mots possibles non trouvés, triés par points décroissants puis ordre alphabétique
+      const missedWords = allPossibleWords
+        .filter(w => !validFoundSet.has(w))
+        .map(w => ({ word: w, pts: computePoints(w) }))
+        .sort((a, b) => (b.pts - a.pts) || a.word.localeCompare(b.word, 'fr'));
+
       document.getElementById('final-score').textContent = totalScore;
-      document.getElementById('final-score-label').textContent = totalScore > 1 ? 'points' : 'point';
+      document.getElementById('final-score-detail').textContent =
+        `${totalScore > 1 ? 'points' : 'point'} sur ${maxPossibleScore} possibles`;
+      document.getElementById('final-words-detail').textContent =
+        `${validFoundCount} ${validFoundCount > 1 ? 'mots trouvés' : 'mot trouvé'} sur ${allPossibleWords.length} possibles`;
 
       const resultsListEl = document.getElementById('results-list');
+      let html = '';
+
       if (evaluated.length === 0) {
-        resultsListEl.innerHTML = '<div class="text-center text-slate-400 text-sm py-8">Aucun mot proposé durant cette manche.</div>';
+        html += '<div class="text-center text-slate-400 text-xs py-3">Aucun mot proposé durant cette manche.</div>';
       } else {
-        resultsListEl.innerHTML = evaluated.map(item => {
+        html += evaluated.map(item => {
           if (item.valid) {
             return `
               <div class="flex items-center justify-between bg-slate-900 border border-emerald-500/30 rounded-xl px-3 py-1.5">
                 <div class="flex items-center gap-2">
-                  <span class="w-4 h-4 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black">✓</span>
+                  <span class="w-4 h-4 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[11px] font-black shrink-0">✓</span>
                   <span class="font-extrabold text-white tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-400">(${item.word.length} l.)</span>
                 </div>
@@ -780,7 +1036,7 @@
             return `
               <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-1.5 opacity-75">
                 <div class="flex items-center gap-2">
-                  <span class="w-4 h-4 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center text-[11px] font-black">✕</span>
+                  <span class="w-4 h-4 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center text-[11px] font-black shrink-0">✕</span>
                   <span class="font-bold text-slate-400 line-through tracking-wider text-sm">${item.word}</span>
                   <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
                 </div>
@@ -790,6 +1046,28 @@
           }
         }).join('');
       }
+
+      if (missedWords.length > 0) {
+        html += `
+          <div class="pt-2.5 pb-1">
+            <hr class="border-slate-800 mb-2" />
+            <div class="text-xs font-bold text-slate-400 px-1 mb-1">autres mots non trouvés :</div>
+          </div>
+        `;
+        html += missedWords.map(item => `
+          <div class="flex items-center justify-between bg-slate-900/40 border border-slate-800/80 rounded-xl px-3 py-1.5">
+            <div class="flex items-center gap-2">
+              <span class="w-4 h-4 shrink-0" aria-hidden="true"></span>
+              <span class="font-semibold text-slate-300 tracking-wider text-sm">${item.word}</span>
+              <span class="text-xs text-slate-500">(${item.word.length} l.)</span>
+            </div>
+            <span class="font-bold text-slate-400 text-sm tabular-fixed">+${item.pts} pt${item.pts > 1 ? 's' : ''}</span>
+          </div>
+        `).join('');
+      }
+
+      resultsListEl.innerHTML = html;
+      resultsListEl.scrollTop = 0;
 
       setExpandedResultsLayout(true);
       document.getElementById('overlay-end').classList.remove('hidden');
