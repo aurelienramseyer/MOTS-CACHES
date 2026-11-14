@@ -1,0 +1,880 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MOTS CACHÉS</title>
+    <!-- Tailwind CSS et Google Fonts Inter -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            overscroll-behavior: none;
+        }
+        .card-dark {
+            background-color: #161e2e;
+            border: 1px solid #263147;
+        }
+        .dice-tile {
+            background: linear-gradient(145deg, #fffbeb, #fde68a);
+            box-shadow: 0 5px 0 #d97706, 0 8px 14px rgba(0, 0, 0, 0.45), inset 0 2px 2px #ffffff;
+            transition: transform 0.08s ease, background 0.1s ease, box-shadow 0.1s ease;
+        }
+        .dice-tile.selected {
+            background: linear-gradient(145deg, #fbbf24, #f59e0b);
+            transform: scale(0.93) translateY(2px);
+            box-shadow: 0 2px 0 #b45309, 0 0 18px rgba(245, 158, 11, 0.85);
+        }
+        .dice-tile.last {
+            background: linear-gradient(145deg, #34d399, #10b981);
+            box-shadow: 0 2px 0 #047857, 0 0 20px rgba(16, 185, 129, 0.9);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-4">
+
+    <!-- Conteneur principal mobile-first -->
+    <div class="w-full max-w-md flex flex-col justify-between min-h-[95vh] gap-3">
+
+        <!-- 1. En-tête -->
+        <header class="card-dark rounded-2xl p-3 flex items-center justify-between shadow-lg">
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-xl flex items-center justify-center shadow">
+                    M
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold tracking-wide text-amber-400 leading-none">MOTS CACHÉS</h1>
+                    <p id="ai-status-text" class="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                        <span id="ai-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                        <span id="ai-status-label">Mode Hors-ligne</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div id="timer-box" class="bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-1.5 flex items-center gap-1.5 font-mono font-extrabold text-lg text-white">
+                    <span class="text-amber-400 text-sm">⏱</span>
+                    <span id="timer-display">02:00</span>
+                </div>
+                <button type="button" id="btn-settings" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-lg active:scale-95 transition" aria-label="Paramètres IA">
+                    ⚙️
+                </button>
+            </div>
+        </header>
+
+        <!-- 2. Zone d'affichage du mot en cours de sélection -->
+        <div class="flex justify-center">
+            <div id="current-word-pill" class="card-dark rounded-full px-6 py-2 min-w-[230px] text-center text-xl font-extrabold tracking-widest text-amber-400 shadow">
+                <span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>
+            </div>
+        </div>
+
+        <!-- 3. Grille 4x4 et écran d'accueil superposé -->
+        <div class="relative w-full max-w-[355px] aspect-square mx-auto bg-gradient-to-br from-amber-950/90 to-slate-900 border-2 border-amber-500/40 rounded-3xl p-3.5 shadow-2xl touch-none">
+            <!-- Tracé SVG reliant les dés glissés -->
+            <svg id="line-svg" class="absolute inset-0 w-full h-full pointer-events-none z-10"></svg>
+            <!-- Grille des 16 dés -->
+            <div id="grid-container" class="relative z-20 w-full h-full grid grid-cols-4 grid-rows-4 gap-2.5 touch-none"></div>
+
+            <!-- Écran d'accueil superposé -->
+            <div id="start-overlay" class="absolute inset-0 z-30 bg-[#0b0f19]/95 rounded-[22px] p-6 flex flex-col items-center justify-center text-center">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-xl flex items-center justify-center mb-3 shadow-lg">
+                    4x4
+                </div>
+                <h2 id="overlay-heading" class="text-2xl font-extrabold text-white mb-2">Prêt à jouer ?</h2>
+                <p id="overlay-subtext" class="text-sm text-slate-300 leading-relaxed mb-5">
+                    Reliez les lettres adjacentes (y compris en diagonale) pendant <strong class="text-white">2 minutes</strong>. Vos points seront calculés à la fin !
+                </p>
+                <button type="button" id="btn-start" onclick="startGame()" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-base tracking-wide shadow-lg shadow-amber-500/20 active:scale-95 transition cursor-pointer">
+                    LANCER LA PARTIE
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. Liste des mots enregistrés (sans points avant la fin) -->
+        <section class="card-dark rounded-2xl p-3 flex flex-col max-h-40 shadow-lg">
+            <div class="flex justify-between items-center pb-2 mb-2 border-b border-slate-700/70 text-xs font-bold uppercase tracking-wider text-slate-300">
+                <span>MOTS ENREGISTRÉS (<span id="words-count" class="text-amber-400">0</span>)</span>
+                <div class="flex items-center gap-2">
+                    <span id="points-hint" class="text-[11px] font-normal normal-case text-slate-400">Points révélés à la fin</span>
+                    <button type="button" id="btn-stop-early" class="hidden text-amber-400 underline font-semibold normal-case text-xs">Terminer</button>
+                </div>
+            </div>
+            <div id="words-list" class="flex flex-wrap gap-1.5 overflow-y-auto min-h-[38px]">
+                <span class="text-xs italic text-slate-400">Aucun mot formé pour l'instant...</span>
+            </div>
+        </section>
+
+        <!-- Barre d'actions discrète -->
+        <footer class="flex gap-2">
+            <button type="button" id="btn-shuffle" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-slate-200 active:scale-95 transition">
+                ↻ Nouvelle grille
+            </button>
+            <button type="button" id="btn-rules" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-slate-200 active:scale-95 transition">
+                Barème & Règles
+            </button>
+            <button type="button" id="btn-export" class="flex-1 py-2.5 px-2 rounded-xl card-dark text-xs font-semibold text-amber-400 active:scale-95 transition">
+                ⬇ Export HTML
+            </button>
+        </footer>
+    </div>
+
+    <!-- 7. Modale Résultats de fin de partie -->
+    <div id="modal-results" class="fixed inset-0 z-50 bg-[#0b0f19]/90 hidden items-center justify-center p-4">
+        <div class="card-dark rounded-3xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 p-5 text-center">
+                <div class="text-sm font-black tracking-widest uppercase">TEMPS ÉCOULÉ !</div>
+                <div class="flex items-baseline justify-center gap-1.5 my-1">
+                    <span id="final-score" class="text-5xl font-black">0</span>
+                    <span id="final-score-unit" class="text-lg font-extrabold">points</span>
+                </div>
+                <div id="score-subtitle" class="text-xs font-bold opacity-90">Vérification en cours...</div>
+            </div>
+            <div class="px-4 pt-3 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Détail de vos mots
+            </div>
+            <div id="results-list" class="px-4 pb-4 overflow-y-auto flex flex-col gap-2"></div>
+            <div class="p-3 border-t border-slate-800 bg-[#0b0f19] flex gap-2">
+                <button type="button" id="btn-view-board" class="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold text-slate-200 active:scale-95 transition">
+                    Voir la grille
+                </button>
+                <button type="button" id="btn-play-again" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-sm font-black text-slate-950 active:scale-95 transition">
+                    Rejouer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. Modale Paramètres IA -->
+    <div id="modal-settings" class="fixed inset-0 z-50 bg-[#0b0f19]/90 hidden items-center justify-center p-4">
+        <div class="card-dark rounded-3xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-lg font-extrabold text-amber-400">Paramètres IA</h3>
+                <button type="button" id="btn-close-settings" class="w-8 h-8 rounded-full bg-slate-800 text-slate-400">✕</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex flex-col gap-3 text-sm">
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Vos clés API sont enregistrées localement sur votre téléphone. L'arbitrage ignore les accents et accepte tous les verbes conjugués.
+                </p>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-1" for="select-provider">Moteur de vérification</label>
+                    <select id="select-provider" class="w-full p-2.5 rounded-xl bg-[#0b0f19] border border-slate-700 text-white">
+                        <option value="offline">Dictionnaire intégré (Hors-ligne)</option>
+                        <option value="gemini">Google Gemini (gemini-2.5-flash)</option>
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="grok">xAI Grok (grok-3-mini)</option>
+                    </select>
+                </div>
+
+                <div id="field-gemini" class="hidden">
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-1" for="key-gemini">Clé API Google Gemini</label>
+                    <input type="password" id="key-gemini" placeholder="AIzaSy..." class="w-full p-2.5 rounded-xl bg-[#0b0f19] border border-slate-700 text-white">
+                </div>
+
+                <div id="field-openrouter" class="hidden flex flex-col gap-2.5">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" for="key-openrouter">Clé API OpenRouter</label>
+                        <input type="password" id="key-openrouter" placeholder="sk-or-v1-..." class="w-full p-2.5 rounded-xl bg-[#0b0f19] border border-slate-700 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" for="model-openrouter">Modèle OpenRouter</label>
+                        <input type="text" id="model-openrouter" placeholder="google/gemini-2.5-flash" class="w-full p-2.5 rounded-xl bg-[#0b0f19] border border-slate-700 text-white">
+                    </div>
+                </div>
+
+                <div id="field-grok" class="hidden">
+                    <label class="block text-xs font-bold uppercase text-slate-400 mb-1" for="key-grok">Clé API xAI Grok</label>
+                    <input type="password" id="key-grok" placeholder="xai-..." class="w-full p-2.5 rounded-xl bg-[#0b0f19] border border-slate-700 text-white">
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-800 bg-[#0b0f19]">
+                <button type="button" id="btn-save-settings" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-sm active:scale-95 transition">
+                    Enregistrer sur l'appareil
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Barème & Règles -->
+    <div id="modal-rules" class="fixed inset-0 z-50 bg-[#0b0f19]/90 hidden items-center justify-center p-4">
+        <div class="card-dark rounded-3xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-lg font-extrabold text-amber-400">Barème & Règles</h3>
+                <button type="button" id="btn-close-rules" class="w-8 h-8 rounded-full bg-slate-800 text-slate-400">✕</button>
+            </div>
+            <div class="p-4 flex flex-col gap-2.5 text-sm text-slate-300">
+                <p>• <strong class="text-white">16 dés français (96 faces)</strong> : fréquences françaises avec <strong class="text-amber-400">1 seul Z</strong> et <strong class="text-amber-400">1 seul W</strong> dans tout le jeu.</p>
+                <p>• <strong class="text-white">Mots acceptés</strong> : 3 lettres minimum, accents ignorés (<em>REEL</em> = réel) et tous les verbes conjugués autorisés (<em>LIERA</em>, <em>DOIE</em>).</p>
+                <div class="bg-[#0b0f19] border border-slate-700 rounded-2xl p-3 mt-1">
+                    <div class="font-bold text-amber-400 mb-1">Points calculés à la fin des 2 min :</div>
+                    <div>• 3 ou 4 lettres : <strong class="text-white">1 point</strong></div>
+                    <div>• 5 lettres : <strong class="text-white">3 points</strong> (+2)</div>
+                    <div>• 6 lettres : <strong class="text-white">5 points</strong> (+2)</div>
+                    <div>• +2 points par lettre supplémentaire</div>
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-800 bg-[#0b0f19]">
+                <button type="button" id="btn-ok-rules" class="w-full py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-sm">Compris</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* Stockage sécurisé localStorage avec repli mémoire */
+        const memoryFallback = {};
+        function safeGetItem(key, defaultValue) {
+            try {
+                const val = window.localStorage.getItem(key);
+                return val !== null ? val : (key in memoryFallback ? memoryFallback[key] : defaultValue);
+            } catch (e) {
+                return key in memoryFallback ? memoryFallback[key] : defaultValue;
+            }
+        }
+        function safeSetItem(key, value) {
+            memoryFallback[key] = value;
+            try {
+                window.localStorage.setItem(key, value);
+            } catch (e) {
+                /* Ignorer si localStorage est restreint */
+            }
+        }
+
+        /* 4. 16 dés virtuels français (96 faces au total : 1 seul Z sur le dé 14, 1 seul W sur le dé 15) */
+        const FRENCH_DICE = [
+            "EAINES", "ETIRAS", "EULNOS", "EAIRTL",
+            "EONMDU", "EACPRT", "EISDVL", "AOUIRN",
+            "ETGNCB", "AIOMPF", "EULRCH", "ASDVBM",
+            "EIQXJK", "OUPYHZ", "AIRENW", "ETOLUS"
+        ];
+
+        /* Normalisation majuscules sans accents */
+        function normalizeWord(word) {
+            return String(word || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toUpperCase()
+                .replace(/[^A-Z]/g, "");
+        }
+
+        /* 9. Dictionnaire intégré hors-ligne (mots courants sans accents + formes conjuguées) */
+        const OFFLINE_DICTIONARY = new Set([
+            "LOI", "LOIS", "LARD", "LARDS", "ARE", "ARES", "REEL", "REELS", "REELLE", "REELLES",
+            "OIE", "OIES", "DOIE", "DOIS", "DOIT", "DOIVE", "DOIVENT", "ALOI", "ALOIS",
+            "LIERA", "LIER", "LIE", "LIES", "LIEE", "LIEES", "LIERAI", "LIERAS", "LIEREZ", "LIERONS", "LIERONT",
+            "AIME", "AIMER", "AIMES", "AIMERA", "AIMA", "AIMEE", "AIMES", "AIMONS", "AIMEZ",
+            "AMI", "AMIE", "AMIS", "AMIES", "AIR", "AIRE", "AIRES", "AIRS", "ART", "ARTS",
+            "ARC", "ARCS", "AME", "AMES", "ANE", "ANES", "AGE", "AGES", "AIDE", "AIDER", "AIDES",
+            "AILE", "AILES", "ALLER", "ALLE", "IRA", "IRAI", "IRAS", "IRONS", "IREZ", "IRONT",
+            "BAS", "BASE", "BASER", "BEAU", "BELLE", "BEAUX", "BIEN", "BIENS", "BOIS", "BOIRE",
+            "BOIT", "BUVONS", "BON", "BONNE", "BONS", "BORD", "BORDS", "BOUT", "BOUTS", "BRAS",
+            "BRUIT", "BRUN", "BUT", "BUTS", "CAR", "CAS", "CAVE", "CAVES", "CENT", "CENTS",
+            "CERF", "CHAIR", "CHAMP", "CHANT", "CHAT", "CHATS", "CHAUD", "CHEF", "CHEFS",
+            "CHER", "CHERE", "CHEZ", "CHIEN", "CIEL", "CIEUX", "CINQ", "CLAIR", "CLE", "CLES",
+            "CLOS", "CLOU", "COEUR", "COIN", "COL", "COLS", "CORPS", "COTE", "COTES", "COU",
+            "COUP", "COUPS", "COUR", "COURS", "COURT", "CRI", "CRIER", "CRIS", "CROIX", "CRU",
+            "CRUE", "CRUS", "CUIR", "CUIRE", "CUIT", "DAME", "DAMES", "DANS", "DATE", "DATES",
+            "DEJA", "DEMI", "DENT", "DENTS", "DEUX", "DIEU", "DIRE", "DIRA", "DIRAI", "DIRAS",
+            "DIS", "DIT", "DITE", "DITS", "DIX", "DOIGT", "DON", "DONC", "DONNE", "DONNERA",
+            "DONS", "DORMIR", "DORS", "DORT", "DOS", "DOUX", "DOUZE", "DRAP", "DRAPS", "DROIT",
+            "DUR", "DURE", "EAU", "EAUX", "ECART", "ECOLE", "ECRIRE", "ECRIT", "EFFET", "EGAL",
+            "ELAN", "ELLE", "ELLES", "ENFIN", "ENTRE", "ENVIE", "EPAIS", "EPEE", "EPEES",
+            "ETAT", "ETATS", "ETE", "ETES", "ETRE", "FAIM", "FAIRE", "FAIS", "FAIT", "FAITS",
+            "FERA", "FERAI", "FERAS", "FAUX", "FEE", "FEES", "FER", "FERME", "FETE", "FETES",
+            "FEU", "FEUX", "FIER", "FIL", "FILE", "FILER", "FILERA", "FILLE", "FILS", "FIN",
+            "FINI", "FINIR", "FINIRA", "FINS", "FLEUR", "FOI", "FOIE", "FOIS", "FOND", "FONDS",
+            "FORCE", "FORET", "FORT", "FORTE", "FOU", "FOULE", "FOUR", "FRAIS", "FRERE", "FROID",
+            "FRUIT", "FUIR", "FUIRA", "FUT", "GARE", "GARER", "GAUCHE", "GENS", "GLACE", "GOUT",
+            "GRAND", "GRAS", "GRIS", "GROS", "HAIE", "HAUT", "HAUTE", "HERBE", "HEURE", "HIER",
+            "HIVER", "HOMME", "HORS", "HUILE", "HUIT", "ICI", "IDEE", "IDEES", "ILE", "ILES",
+            "IMAGE", "JADIS", "JAMBE", "JARDIN", "JAUNE", "JET", "JETER", "JEU", "JEUNE", "JEUX",
+            "JOIE", "JOLI", "JOLIE", "JOUE", "JOUER", "JOUERA", "JOUR", "JOURS", "JUGE", "JUGER",
+            "JUIN", "JUPE", "JUS", "LAC", "LACS", "LAID", "LAINE", "LAIT", "LAME", "LAMES",
+            "LANCE", "LARGE", "LARME", "LECON", "LEGER", "LENT", "LEUR", "LEURS", "LEVER",
+            "LIEU", "LIEUX", "LIGNE", "LION", "LIRE", "LIRA", "LIRAI", "LIRAS", "LIS", "LISE",
+            "LIT", "LITS", "LIVRE", "LOGE", "LOIN", "LONG", "LOUP", "LOURD", "LUI", "LUNE",
+            "LUNES", "MAIN", "MAINS", "MAIRE", "MAIS", "MAL", "MALE", "MALES", "MAMAN", "MANGE",
+            "MANGERA", "MARCHE", "MARE", "MARI", "MARIE", "MARS", "MATIN", "MAUX", "MEME", "MEMES",
+            "MENE", "MENER", "MENERA", "MER", "MERCI", "MERE", "MERES", "MERS", "MES", "MET",
+            "METS", "METTRE", "METTRA", "MIEUX", "MILLE", "MINE", "MIROIR", "MIS", "MISE", "MODE",
+            "MOI", "MOINS", "MOIS", "MONDE", "MONT", "MONTS", "MORT", "MORTS", "MOT", "MOTS",
+            "MOU", "MUR", "MURS", "NAGE", "NAGER", "NAGERA", "NAIN", "NEIGE", "NERF", "NEUF",
+            "NEZ", "NID", "NIDS", "NOIR", "NOIRE", "NOIRS", "NOIX", "NOM", "NOMS", "NON",
+            "NORD", "NOS", "NOTE", "NOTRE", "NOUS", "NUIT", "NUITS", "OBJET", "ODEUR", "OEIL",
+            "OEUF", "OEUFS", "OFFRE", "OMBRE", "ONCLE", "ONDE", "ONGLE", "ONZE", "OR", "ORAGE",
+            "ORDRE", "OS", "OSE", "OSER", "OSERA", "OUEST", "OUI", "OURS", "OUTIL", "OUVRE",
+            "PAGE", "PAGES", "PAIN", "PAINS", "PAIR", "PAIRE", "PAIX", "PALE", "PAPA", "PAR",
+            "PARC", "PARE", "PARI", "PARLE", "PARLERA", "PART", "PARTI", "PAS", "PASSE", "PATE",
+            "PATTE", "PAYE", "PAYER", "PAYERA", "PAYS", "PEAU", "PEINE", "PENSE", "PERD", "PERDU",
+            "PERE", "PERLE", "PETIT", "PEU", "PEUR", "PEUT", "PEUX", "PIECE", "PIED", "PIEDS",
+            "PIERRE", "PIRE", "PLACE", "PLAIE", "PLAIN", "PLAIS", "PLAN", "PLAT", "PLEIN", "PLEUR",
+            "PLI", "PLIER", "PLIERA", "PLUIE", "PLUME", "PLUS", "POCHE", "POIDS", "POIL", "POING",
+            "POINT", "POIRE", "POIS", "POLE", "POLI", "POMME", "PONT", "PORC", "PORT", "PORTE",
+            "POSE", "POSER", "POSERA", "POT", "POTS", "POULE", "POUR", "PRE", "PRES", "PRET",
+            "PRIE", "PRIER", "PRIERA", "PRIS", "PRISE", "PRIX", "PROIE", "PUIS", "PUR", "PURE",
+            "QUAI", "QUAND", "QUART", "QUATRE", "QUE", "QUEL", "QUEUE", "QUI", "QUOI", "RACE",
+            "RAGE", "RAIL", "RAISON", "RANG", "RARE", "RAS", "RAT", "RATS", "RAYON", "RECU",
+            "REINE", "REND", "RENDU", "REPAS", "RESTE", "REVE", "REVER", "REVERA", "RICHE", "RIDE",
+            "RIEN", "RIRE", "RIRA", "RIS", "RIT", "RIVE", "RIVES", "RIZ", "ROBE", "ROBES",
+            "ROC", "ROCHE", "ROI", "ROIS", "ROLE", "ROND", "RONDE", "ROSE", "ROSES", "ROUE",
+            "ROUES", "ROUGE", "ROULE", "ROUTE", "ROUX", "RUE", "RUES", "SABLE", "SAC", "SACS",
+            "SAGE", "SAIN", "SAINT", "SAIS", "SAIT", "SAURA", "SAURAI", "SAURAS", "SALE", "SALLE",
+            "SANG", "SANS", "SAUCE", "SAUF", "SAUT", "SAUTE", "SAUVE", "SAVOIR", "SEC", "SECHE",
+            "SEL", "SELON", "SEME", "SEMER", "SENS", "SENT", "SEPT", "SERA", "SERAI", "SERAS",
+            "SEREZ", "SERRE", "SERS", "SERT", "SEUL", "SEULE", "SEULS", "SEXE", "SIECLE", "SIEGE",
+            "SIEN", "SIGNE", "SINGE", "SIX", "SOEUR", "SOI", "SOIE", "SOIF", "SOIN", "SOIR",
+            "SOIRS", "SOIS", "SOIT", "SOL", "SOLDAT", "SOLE", "SOLEIL", "SOLS", "SOMME", "SON",
+            "SONGE", "SONNE", "SONS", "SORS", "SORT", "SOT", "SOU", "SOUCI", "SOUPE", "SOURD",
+            "SOURIS", "SOUS", "SUCRE", "SUD", "SUIS", "SUITE", "SUIVRE", "SUR", "SURE", "SURS",
+            "TABLE", "TACHE", "TAILLE", "TAIRE", "TAIS", "TAIT", "TANT", "TANTE", "TARD", "TAS",
+            "TASSE", "TAUX", "TEL", "TELLE", "TEMPS", "TEND", "TENIR", "TENTE", "TENU", "TERRE",
+            "TETE", "TETES", "THE", "TIEN", "TIENS", "TIENT", "TIGE", "TIRE", "TIRER", "TIRERA",
+            "TOI", "TOILE", "TOIT", "TOMBE", "TON", "TONS", "TORD", "TORT", "TOT", "TOTAL",
+            "TOUCHE", "TOUR", "TOURS", "TOUS", "TOUT", "TOUTE", "TRAIN", "TRAIT", "TRES", "TRI",
+            "TRISTE", "TROIS", "TRONC", "TROP", "TROU", "TUE", "TUER", "TUERA", "TUILE", "TYPE",
+            "UNE", "UNES", "UNI", "UNIR", "UNIRA", "UNIS", "UNS", "USAGE", "USE", "USER",
+            "USINE", "UTILE", "VACHE", "VAGUE", "VAIN", "VAL", "VALEUR", "VALSE", "VASE", "VASTE",
+            "VEAU", "VECU", "VEILLE", "VEND", "VENDU", "VENIR", "VENT", "VENTS", "VENU", "VENUE",
+            "VER", "VERRE", "VERS", "VERT", "VERTE", "VERTS", "VESTE", "VEUT", "VEUX", "VIDE",
+            "VIDER", "VIE", "VIEIL", "VIENS", "VIENT", "VIES", "VIEUX", "VIF", "VIFS", "VIGNE",
+            "VILLE", "VIN", "VINGT", "VINS", "VINT", "VITE", "VIVRE", "VIVRA", "VOICI", "VOIE",
+            "VOIES", "VOILA", "VOILE", "VOIR", "VERRA", "VOIS", "VOIT", "VOIX", "VOL", "VOLE",
+            "VOLER", "VOLERA", "VOLS", "VOS", "VOTE", "VOTRE", "VOULU", "VOUS", "VRAI", "VRAIE",
+            "VUE", "VUES", "WAGON", "YEUX", "ZERO", "ZONE", "ZOO"
+        ]);
+
+        /* État du jeu */
+        let board = [];
+        let foundWords = [];
+        let selectedIndices = [];
+        let isDragging = false;
+        let isPlaying = false;
+        let timeRemaining = 120;
+        let timerInterval = null;
+
+        let config = {
+            provider: "offline",
+            keys: {
+                gemini: "",
+                openrouter: "",
+                grok: ""
+            },
+            openrouterModel: "google/gemini-2.5-flash"
+        };
+
+        /* Chargement et mise à jour de l'état IA */
+        function loadSettings() {
+            const raw = safeGetItem("mots_caches_config", "");
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    config.provider = parsed.provider || "offline";
+                    config.keys = Object.assign({ gemini: "", openrouter: "", grok: "" }, parsed.keys || {});
+                    config.openrouterModel = parsed.openrouterModel || "google/gemini-2.5-flash";
+                } catch (e) {
+                    /* Conserver valeurs par défaut */
+                }
+            }
+            updateStatusBadge();
+        }
+
+        function updateStatusBadge() {
+            const labelEl = document.getElementById("ai-status-label");
+            const dotEl = document.getElementById("ai-status-dot");
+            const names = {
+                offline: "Mode Hors-ligne",
+                gemini: "IA : Google Gemini",
+                openrouter: "IA : OpenRouter",
+                grok: "IA : xAI Grok"
+            };
+            labelEl.textContent = names[config.provider] || "Mode Hors-ligne";
+            const ready = config.provider === "offline" || Boolean(config.keys[config.provider]);
+            dotEl.className = "w-2 h-2 rounded-full inline-block " + (ready ? "bg-emerald-400" : "bg-amber-400");
+        }
+
+        /* Tirage aléatoire des 16 dés français */
+        function generateBoard() {
+            const dice = [...FRENCH_DICE];
+            for (let i = dice.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [dice[i], dice[j]] = [dice[j], dice[i]];
+            }
+            board = dice.map(faces => faces[Math.floor(Math.random() * 6)]);
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const container = document.getElementById("grid-container");
+            container.innerHTML = "";
+            board.forEach((letter, idx) => {
+                const tile = document.createElement("div");
+                tile.className = "dice-tile rounded-2xl flex items-center justify-center text-3xl font-black text-slate-900 cursor-pointer touch-none";
+                tile.dataset.index = idx;
+                tile.textContent = letter;
+                container.appendChild(tile);
+            });
+            clearSelection();
+        }
+
+        /* Démarrage de la partie (2 minutes) */
+        function startGame() {
+            clearInterval(timerInterval);
+            generateBoard();
+            foundWords = [];
+            selectedIndices = [];
+            isDragging = false;
+            isPlaying = true;
+            timeRemaining = 120;
+
+            document.getElementById("start-overlay").classList.add("hidden");
+            document.getElementById("modal-results").classList.add("hidden");
+            document.getElementById("modal-results").classList.remove("flex");
+            document.getElementById("btn-stop-early").classList.remove("hidden");
+            document.getElementById("points-hint").classList.add("hidden");
+
+            renderFoundWords();
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    finishGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const mins = String(Math.floor(Math.max(0, timeRemaining) / 60)).padStart(2, "0");
+            const secs = String(Math.max(0, timeRemaining) % 60).padStart(2, "0");
+            document.getElementById("timer-display").textContent = `${mins}:${secs}`;
+            const box = document.getElementById("timer-box");
+            if (timeRemaining <= 15 && isPlaying) {
+                box.classList.add("border-rose-500", "text-rose-400");
+            } else {
+                box.classList.remove("border-rose-500", "text-rose-400");
+            }
+        }
+
+        /* Fin de partie et ouverture des scores */
+        function finishGame() {
+            clearInterval(timerInterval);
+            isPlaying = false;
+            isDragging = false;
+            clearSelection();
+
+            document.getElementById("btn-stop-early").classList.add("hidden");
+            document.getElementById("points-hint").classList.remove("hidden");
+            document.getElementById("overlay-heading").textContent = "Partie terminée !";
+            document.getElementById("overlay-subtext").textContent = "Consultez vos points ou lancez une nouvelle grille de 16 dés.";
+            document.getElementById("btn-start").textContent = "REJOUER";
+            document.getElementById("start-overlay").classList.remove("hidden");
+
+            const modal = document.getElementById("modal-results");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            calculateAndShowResults();
+        }
+
+        /* Gestion du glissement tactile et souris (y compris diagonales) */
+        function areAdjacent(i1, i2) {
+            if (i1 === i2) return false;
+            const r1 = Math.floor(i1 / 4), c1 = i1 % 4;
+            const r2 = Math.floor(i2 / 4), c2 = i2 % 4;
+            return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+        }
+
+        function getTileIndexAt(clientX, clientY) {
+            const el = document.elementFromPoint(clientX, clientY);
+            if (!el) return null;
+            const tile = el.closest(".dice-tile");
+            if (!tile) return null;
+            const rect = tile.getBoundingClientRect();
+            const padX = rect.width * 0.08;
+            const padY = rect.height * 0.08;
+            if (clientX >= rect.left + padX && clientX <= rect.right - padX &&
+                clientY >= rect.top + padY && clientY <= rect.bottom - padY) {
+                return Number(tile.dataset.index);
+            }
+            return null;
+        }
+
+        function handleStart(x, y) {
+            if (!isPlaying) return;
+            const idx = getTileIndexAt(x, y);
+            if (idx !== null) {
+                isDragging = true;
+                selectedIndices = [idx];
+                updateSelectionUI();
+            }
+        }
+
+        function handleMove(x, y) {
+            if (!isDragging || !isPlaying) return;
+            const idx = getTileIndexAt(x, y);
+            if (idx === null) return;
+
+            const lastIdx = selectedIndices[selectedIndices.length - 1];
+            if (idx === lastIdx) return;
+
+            /* Retour arrière sur l'avant-dernière case */
+            if (selectedIndices.length >= 2 && idx === selectedIndices[selectedIndices.length - 2]) {
+                selectedIndices.pop();
+                updateSelectionUI();
+                return;
+            }
+
+            if (!selectedIndices.includes(idx) && areAdjacent(lastIdx, idx)) {
+                selectedIndices.push(idx);
+                updateSelectionUI();
+            }
+        }
+
+        function handleEnd() {
+            if (!isDragging) return;
+            isDragging = false;
+            if (isPlaying && selectedIndices.length >= 3) {
+                const word = normalizeWord(selectedIndices.map(i => board[i]).join(""));
+                if (word.length >= 3 && !foundWords.includes(word)) {
+                    foundWords.unshift(word);
+                    renderFoundWords();
+                }
+            }
+            clearSelection();
+        }
+
+        function updateSelectionUI() {
+            const tiles = document.querySelectorAll(".dice-tile");
+            tiles.forEach((tile, i) => {
+                tile.classList.remove("selected", "last");
+                const pos = selectedIndices.indexOf(i);
+                if (pos !== -1) {
+                    tile.classList.add("selected");
+                    if (pos === selectedIndices.length - 1) tile.classList.add("last");
+                }
+            });
+
+            const pill = document.getElementById("current-word-pill");
+            if (selectedIndices.length > 0) {
+                pill.textContent = selectedIndices.map(i => board[i]).join("");
+            } else {
+                pill.innerHTML = '<span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>';
+            }
+            drawPathLine();
+        }
+
+        function clearSelection() {
+            selectedIndices = [];
+            document.querySelectorAll(".dice-tile").forEach(t => t.classList.remove("selected", "last"));
+            document.getElementById("line-svg").innerHTML = "";
+            document.getElementById("current-word-pill").innerHTML = '<span class="text-sm font-medium tracking-normal text-slate-400">Glissez sur les lettres...</span>';
+        }
+
+        function drawPathLine() {
+            const svg = document.getElementById("line-svg");
+            svg.innerHTML = "";
+            if (selectedIndices.length < 2) return;
+
+            const svgRect = svg.getBoundingClientRect();
+            const tiles = document.querySelectorAll(".dice-tile");
+            const points = selectedIndices.map(i => {
+                const r = tiles[i].getBoundingClientRect();
+                return `${r.left - svgRect.left + r.width / 2},${r.top - svgRect.top + r.height / 2}`;
+            }).join(" ");
+
+            const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            polyline.setAttribute("points", points);
+            polyline.setAttribute("fill", "none");
+            polyline.setAttribute("stroke", "rgba(245, 158, 11, 0.85)");
+            polyline.setAttribute("stroke-width", "8");
+            polyline.setAttribute("stroke-linecap", "round");
+            polyline.setAttribute("stroke-linejoin", "round");
+            svg.appendChild(polyline);
+        }
+
+        /* Liste des mots trouvés pendant la partie (aucun point affiché) */
+        function renderFoundWords() {
+            document.getElementById("words-count").textContent = foundWords.length;
+            const list = document.getElementById("words-list");
+            if (foundWords.length === 0) {
+                list.innerHTML = '<span class="text-xs italic text-slate-400">Aucun mot formé pour l\'instant...</span>';
+                return;
+            }
+            list.innerHTML = foundWords.map(w =>
+                `<span class="bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold tracking-wider text-slate-100">${w}</span>`
+            ).join("");
+        }
+
+        /* Barème exact : 1 pt pour 3-4 lettres, +2 pts par lettre supplémentaire */
+        function computePoints(word) {
+            if (word.length < 3) return 0;
+            if (word.length <= 4) return 1;
+            return 1 + (word.length - 4) * 2;
+        }
+
+        /* Prompt IA : accents ignorés + tous les verbes conjugués autorisés */
+        function buildVerificationPrompt(words) {
+            return `Tu es l'arbitre officiel d'un jeu de Boggle français. Vérifie chacun des mots suivants : ${JSON.stringify(words)}.
+Règles strictes d'arbitrage :
+1. Ignore totalement les accents (par exemple : REEL est valide pour réel, ETE est valide pour été, CAFE est valide pour café).
+2. Accepte TOUS les verbes conjugués à tous les temps, modes et personnes (par exemple : LIERA, DOIE, AIMERA, FUMES), ainsi que les pluriels et féminins.
+3. Accepte tous les noms communs, adjectifs, adverbes, prépositions et interjections du dictionnaire français.
+4. Refuse uniquement les noms propres, sigles, abréviations et suites de lettres inventées.
+Réponds uniquement en JSON valide sous la forme : {"results":{"MOT":true}}`;
+        }
+
+        async function verifyWithAI(words) {
+            const provider = config.provider;
+            const apiKey = (config.keys[provider] || "").trim();
+            if (!apiKey) throw new Error("Clé API manquante");
+
+            const prompt = buildVerificationPrompt(words);
+            let rawText = "";
+
+            if (provider === "gemini") {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || "Erreur Gemini");
+                rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            } else if (provider === "openrouter") {
+                const model = (config.openrouterModel || "google/gemini-2.5-flash").trim();
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                        "HTTP-Referer": window.location.href || "https://github.com",
+                        "X-Title": "MOTS CACHES"
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        temperature: 0.1,
+                        messages: [{ role: "user", content: prompt }]
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || "Erreur OpenRouter");
+                rawText = data.choices?.[0]?.message?.content || "";
+            } else if (provider === "grok") {
+                const res = await fetch("https://api.x.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "grok-3-mini",
+                        temperature: 0.1,
+                        messages: [{ role: "user", content: prompt }]
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error?.message || "Erreur Grok");
+                rawText = data.choices?.[0]?.message?.content || "";
+            }
+
+            const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error("Format de réponse invalide");
+            const parsed = JSON.parse(jsonMatch[0]);
+            const map = {};
+            if (parsed && parsed.results) {
+                for (const [k, v] of Object.entries(parsed.results)) {
+                    map[normalizeWord(k)] = Boolean(v);
+                }
+            }
+            return map;
+        }
+
+        async function calculateAndShowResults() {
+            const listEl = document.getElementById("results-list");
+            const subEl = document.getElementById("score-subtitle");
+            const scoreEl = document.getElementById("final-score");
+            const unitEl = document.getElementById("final-score-unit");
+
+            if (foundWords.length === 0) {
+                scoreEl.textContent = "0";
+                unitEl.textContent = "point";
+                subEl.textContent = "Aucun mot trouvé";
+                listEl.innerHTML = '<p class="text-center text-sm text-slate-400 py-4">Vous n\'avez formé aucun mot durant cette manche.</p>';
+                return;
+            }
+
+            let validityMap = {};
+            let sourceLabel = "Vérifié avec le dictionnaire intégré";
+
+            if (config.provider !== "offline" && config.keys[config.provider]) {
+                subEl.textContent = `Vérification via ${config.provider.toUpperCase()}...`;
+                listEl.innerHTML = '<p class="text-center text-sm text-amber-400 py-4">Analyse des mots en cours...</p>';
+                try {
+                    validityMap = await verifyWithAI(foundWords);
+                    sourceLabel = `Vérifié par IA (${config.provider.toUpperCase()})`;
+                } catch (err) {
+                    foundWords.forEach(w => { validityMap[w] = OFFLINE_DICTIONARY.has(w); });
+                    sourceLabel = `Erreur IA (${err.message}) — dictionnaire intégré utilisé`;
+                }
+            } else {
+                foundWords.forEach(w => { validityMap[w] = OFFLINE_DICTIONARY.has(w); });
+            }
+
+            let totalScore = 0;
+            listEl.innerHTML = foundWords.map(word => {
+                const isValid = (word in validityMap) ? validityMap[word] : OFFLINE_DICTIONARY.has(word);
+                const pts = isValid ? computePoints(word) : 0;
+                totalScore += pts;
+
+                if (isValid) {
+                    return `<div class="flex justify-between items-center bg-slate-800/90 border border-emerald-500/40 rounded-xl px-3 py-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-5 h-5 rounded bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">✓</span>
+                            <strong class="tracking-wide text-white">${word}</strong>
+                            <span class="text-xs text-slate-400">(${word.length} l.)</span>
+                        </div>
+                        <span class="font-extrabold text-amber-400">+${pts} pt${pts > 1 ? "s" : ""}</span>
+                    </div>`;
+                } else {
+                    return `<div class="flex justify-between items-center bg-slate-800/40 border border-slate-700/70 rounded-xl px-3 py-2 opacity-70">
+                        <div class="flex items-center gap-2">
+                            <span class="text-rose-500 font-black text-sm">✕</span>
+                            <span class="line-through text-slate-400 font-semibold">${word}</span>
+                            <span class="text-xs text-slate-500">(${word.length} l.)</span>
+                        </div>
+                        <span class="text-xs font-bold text-slate-500">0 pt</span>
+                    </div>`;
+                }
+            }).join("");
+
+            scoreEl.textContent = totalScore;
+            unitEl.textContent = totalScore > 1 ? "points" : "point";
+            subEl.textContent = sourceLabel;
+        }
+
+        function syncProviderFields() {
+            const p = document.getElementById("select-provider").value;
+            document.getElementById("field-gemini").classList.toggle("hidden", p !== "gemini");
+            document.getElementById("field-openrouter").classList.toggle("hidden", p !== "openrouter");
+            document.getElementById("field-grok").classList.toggle("hidden", p !== "grok");
+        }
+
+        /* Initialisation des écouteurs d'événements */
+        function initApp() {
+            loadSettings();
+            generateBoard();
+
+            const btnStart = document.getElementById("btn-start");
+            btnStart.addEventListener("touchstart", e => {
+                e.preventDefault();
+                startGame();
+            }, { passive: false });
+
+            document.getElementById("btn-shuffle").addEventListener("click", startGame);
+            document.getElementById("btn-stop-early").addEventListener("click", finishGame);
+            document.getElementById("btn-play-again").addEventListener("click", startGame);
+
+            document.getElementById("btn-view-board").addEventListener("click", () => {
+                const m = document.getElementById("modal-results");
+                m.classList.add("hidden");
+                m.classList.remove("flex");
+            });
+
+            document.getElementById("btn-settings").addEventListener("click", () => {
+                document.getElementById("select-provider").value = config.provider;
+                document.getElementById("key-gemini").value = config.keys.gemini || "";
+                document.getElementById("key-openrouter").value = config.keys.openrouter || "";
+                document.getElementById("model-openrouter").value = config.openrouterModel || "google/gemini-2.5-flash";
+                document.getElementById("key-grok").value = config.keys.grok || "";
+                syncProviderFields();
+                const m = document.getElementById("modal-settings");
+                m.classList.remove("hidden");
+                m.classList.add("flex");
+            });
+
+            document.getElementById("select-provider").addEventListener("change", syncProviderFields);
+
+            document.getElementById("btn-close-settings").addEventListener("click", () => {
+                const m = document.getElementById("modal-settings");
+                m.classList.add("hidden");
+                m.classList.remove("flex");
+            });
+
+            document.getElementById("btn-save-settings").addEventListener("click", () => {
+                config.provider = document.getElementById("select-provider").value;
+                config.keys.gemini = document.getElementById("key-gemini").value.trim();
+                config.keys.openrouter = document.getElementById("key-openrouter").value.trim();
+                config.openrouterModel = document.getElementById("model-openrouter").value.trim() || "google/gemini-2.5-flash";
+                config.keys.grok = document.getElementById("key-grok").value.trim();
+                safeSetItem("mots_caches_config", JSON.stringify(config));
+                updateStatusBadge();
+                const m = document.getElementById("modal-settings");
+                m.classList.add("hidden");
+                m.classList.remove("flex");
+            });
+
+            document.getElementById("btn-rules").addEventListener("click", () => {
+                const m = document.getElementById("modal-rules");
+                m.classList.remove("hidden");
+                m.classList.add("flex");
+            });
+            ["btn-close-rules", "btn-ok-rules"].forEach(id => {
+                document.getElementById(id).addEventListener("click", () => {
+                    const m = document.getElementById("modal-rules");
+                    m.classList.add("hidden");
+                    m.classList.remove("flex");
+                });
+            });
+
+            document.getElementById("btn-export").addEventListener("click", () => {
+                const blob = new Blob(["<!DOCTYPE html>\n" + document.documentElement.outerHTML], { type: "text/html;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "index.html";
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            const grid = document.getElementById("grid-container");
+            grid.addEventListener("touchstart", e => {
+                if (!isPlaying) return;
+                e.preventDefault();
+                handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+
+            grid.addEventListener("touchmove", e => {
+                if (!isDragging) return;
+                e.preventDefault();
+                handleMove(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+
+            window.addEventListener("touchend", handleEnd);
+
+            grid.addEventListener("mousedown", e => {
+                if (e.button === 0) handleStart(e.clientX, e.clientY);
+            });
+            window.addEventListener("mousemove", e => {
+                if (isDragging) handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener("mouseup", handleEnd);
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initApp);
+        } else {
+            initApp();
+        }
+    </script>
+</body>
+</html>
